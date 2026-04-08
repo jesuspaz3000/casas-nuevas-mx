@@ -1,0 +1,91 @@
+// Casas Nuevas MX - Diagrama ER
+// Autor: Jesús Paz
+
+Table users {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null]
+  email varchar(150) [unique, not null]
+  password varchar(255) [not null]
+  role role_enum [not null, note: 'ADMIN, AGENT']
+  is_active boolean [default: true]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+}
+
+Table properties {
+  id uuid [pk, default: `gen_random_uuid()`]
+  title varchar(150) [not null]
+  description text
+  type property_type_enum [not null, note: 'HOUSE, APARTMENT, LAND, COMMERCIAL']
+  status property_status_enum [not null, note: 'AVAILABLE, RESERVED, SOLD']
+  price decimal(12,2) [not null]
+  currency varchar(3) [default: 'MXN']
+  street varchar(200)
+  neighborhood varchar(100)
+  city varchar(100)
+  state varchar(100)
+  zip_code varchar(10)
+  bedrooms int
+  bathrooms int
+  area_m2 decimal(8,2)
+  agent_id uuid [ref: > users.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deleted_at timestamp [null]
+}
+
+Table property_photos {
+  id uuid [pk, default: `gen_random_uuid()`]
+  property_id uuid [ref: > properties.id]
+  url varchar(500) [not null]
+  is_cover boolean [default: false]
+  order int [default: 0]
+  created_at timestamp [default: `now()`]
+}
+
+Table clients {
+  id uuid [pk, default: `gen_random_uuid()`]
+  name varchar(100) [not null]
+  email varchar(150)
+  phone varchar(20)
+  budget_min decimal(12,2)
+  budget_max decimal(12,2)
+  interested_type property_type_enum [note: 'Tipo de propiedad que busca']
+  interested_city varchar(100)
+  status client_status_enum [not null, note: 'LEAD, INTERESTED, NEGOTIATING, CLOSED, LOST']
+  notes text
+  agent_id uuid [ref: > users.id]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deleted_at timestamp [null]
+}
+
+Table appointments {
+  id uuid [pk, default: `gen_random_uuid()`]
+  property_id uuid [ref: > properties.id]
+  client_id uuid [ref: > clients.id]
+  agent_id uuid [ref: > users.id]
+  scheduled_at timestamp [not null]
+  status appointment_status_enum [not null, note: 'PENDING, CONFIRMED, CANCELLED, DONE']
+  notes text
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+  deleted_at timestamp [null]
+}
+
+Table contracts {
+  id uuid [pk, default: `gen_random_uuid()`]
+  folio varchar(30) [unique, not null, note: 'CNMX-20260408-001']
+  property_id uuid [ref: > properties.id]
+  client_id uuid [ref: > clients.id]
+  agent_id uuid [ref: > users.id]
+  reservation_price decimal(12,2) [not null]
+  client_rfc varchar(13)
+  client_address text
+  client_cfdi_use varchar(10) [note: 'G03']
+  company_rfc varchar(13) [default: 'CNMX8506269H50']
+  company_name varchar(150) [default: 'Casas Nuevas MX']
+  pdf_url varchar(500)
+  generated_at timestamp [default: `now()`]
+  created_at timestamp [default: `now()`]
+}
