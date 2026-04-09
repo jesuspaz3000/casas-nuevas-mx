@@ -31,6 +31,15 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request, response));
     }
 
+    @Operation(summary = "Refrescar access token", description = "Usa el refresh_token cookie para emitir un nuevo access_token")
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        return ResponseEntity.ok(authService.refresh(request, response));
+    }
+
     @Operation(summary = "Cerrar sesión", description = "Invalida el token en Redis y limpia las cookies")
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(

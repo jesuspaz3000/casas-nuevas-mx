@@ -7,6 +7,7 @@ import com.casasnuevas.backend.config.CookieProperties;
 import com.casasnuevas.backend.config.JwtConfig;
 import com.casasnuevas.backend.config.TokenBlacklistService;
 import com.casasnuevas.backend.user.model.User;
+import com.casasnuevas.backend.user.repository.UserRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,6 +16,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -30,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtConfig jwtConfig;
     private final CookieProperties cookieProperties;
     private final TokenBlacklistService tokenBlacklistService;
+    private final UserRepository userRepository;
 
     @Override
     public AuthResponse login(LoginRequest request, HttpServletResponse response) {
@@ -62,6 +65,42 @@ public class AuthServiceImpl implements AuthService {
 
         clearCookie(response, ACCESS_TOKEN_COOKIE);
         clearCookie(response, REFRESH_TOKEN_COOKIE);
+    }
+
+    @Override
+    public AuthResponse refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = readCookie(request, REFRESH_TOKEN_COOKIE);
+
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new IllegalArgumentException("Refresh token no encontrado");
+        }
+
+        try {
+            if (tokenBlacklistService.isTokenBlacklisted(refreshToken)) {
+                throw new IllegalArgumentException("Refresh token revocado");
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception ignored) {
+            // Redis no disponible — continuamos
+        }
+
+        String email = jwtConfig.extractUsername(refreshToken);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+
+        if (!user.isEnabled()) {
+            throw new IllegalArgumentException("Cuenta desactivada");
+        }
+
+        if (!jwtConfig.isTokenValid(refreshToken, user)) {
+            throw new IllegalArgumentException("Refresh token inválido o expirado");
+        }
+
+        String newAccessToken = jwtConfig.generateAccessToken(user);
+        addCookie(response, ACCESS_TOKEN_COOKIE, newAccessToken, jwtConfig.getAccessTokenExpiration());
+
+        return toAuthResponse(user);
     }
 
     @Override
