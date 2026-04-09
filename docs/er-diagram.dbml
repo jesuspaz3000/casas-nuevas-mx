@@ -1,5 +1,7 @@
 // Casas Nuevas MX - Diagrama ER
 // Autor: Jesús Paz
+// Notas: los enums se persisten como VARCHAR vía JPA (@Enumerated STRING).
+// property_photos.sort_order sustituye el nombre "order" (reservado en SQL).
 
 Table users {
   id uuid [pk, default: `gen_random_uuid()`]
@@ -28,7 +30,7 @@ Table properties {
   bedrooms int
   bathrooms int
   area_m2 decimal(8,2)
-  agent_id uuid [ref: > users.id]
+  agent_id uuid [ref: > users.id, note: 'nullable si aún no asignado']
   created_at timestamp [default: `now()`]
   updated_at timestamp [default: `now()`]
   deleted_at timestamp [null]
@@ -36,11 +38,12 @@ Table properties {
 
 Table property_photos {
   id uuid [pk, default: `gen_random_uuid()`]
-  property_id uuid [ref: > properties.id]
+  property_id uuid [not null, ref: > properties.id]
   url varchar(500) [not null]
   is_cover boolean [default: false]
-  order int [default: 0]
+  sort_order int [not null, default: 0, note: 'orden de visualización']
   created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
 }
 
 Table clients {
@@ -62,9 +65,9 @@ Table clients {
 
 Table appointments {
   id uuid [pk, default: `gen_random_uuid()`]
-  property_id uuid [ref: > properties.id]
-  client_id uuid [ref: > clients.id]
-  agent_id uuid [ref: > users.id]
+  property_id uuid [not null, ref: > properties.id]
+  client_id uuid [not null, ref: > clients.id]
+  agent_id uuid [not null, ref: > users.id]
   scheduled_at timestamp [not null]
   status appointment_status_enum [not null, note: 'PENDING, CONFIRMED, CANCELLED, DONE']
   notes text
@@ -76,16 +79,19 @@ Table appointments {
 Table contracts {
   id uuid [pk, default: `gen_random_uuid()`]
   folio varchar(30) [unique, not null, note: 'CNMX-20260408-001']
-  property_id uuid [ref: > properties.id]
-  client_id uuid [ref: > clients.id]
-  agent_id uuid [ref: > users.id]
+  property_id uuid [not null, ref: > properties.id]
+  client_id uuid [not null, ref: > clients.id]
+  agent_id uuid [not null, ref: > users.id]
+  contract_type contract_type_enum [not null, note: 'RESERVATION, PURCHASE_AGREEMENT']
+  status contract_status_enum [not null, default: 'DRAFT', note: 'DRAFT, PENDING_SIGNATURE, SIGNED, CANCELLED']
   reservation_price decimal(12,2) [not null]
+  sale_price decimal(12,2) [null, note: 'Precio final de venta para dashboard']
   client_rfc varchar(13)
   client_address text
   client_cfdi_use varchar(10) [note: 'G03']
   company_rfc varchar(13) [default: 'CNMX8506269H50']
   company_name varchar(150) [default: 'Casas Nuevas MX']
   pdf_url varchar(500)
-  generated_at timestamp [default: `now()`]
   created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
 }
