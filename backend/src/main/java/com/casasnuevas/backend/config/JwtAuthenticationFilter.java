@@ -80,13 +80,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
 
         } catch (ExpiredJwtException e) {
-            handleJwtException(response, "Token expired", "The JWT token has expired");
-        } catch (SignatureException e) {
-            handleJwtException(response, "Invalid token", "The JWT token signature is invalid");
-        } catch (MalformedJwtException e) {
-            handleJwtException(response, "Malformed token", "The JWT token format is invalid");
+            // Token expirado: no bloqueamos — Spring Security decide según el endpoint
+            SecurityContextHolder.clearContext();
+            request.setAttribute("jwt.error", "Token expired");
+            filterChain.doFilter(request, response);
+        } catch (SignatureException | MalformedJwtException e) {
+            // Token inválido/malformado: limpiamos contexto y continuamos
+            SecurityContextHolder.clearContext();
+            request.setAttribute("jwt.error", "Invalid token");
+            filterChain.doFilter(request, response);
         } catch (Exception e) {
-            handleJwtException(response, "Authentication error", "The JWT token could not be processed");
+            SecurityContextHolder.clearContext();
+            filterChain.doFilter(request, response);
         }
     }
 
