@@ -12,7 +12,9 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -68,8 +71,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public AuthResponse refresh(HttpServletRequest request, HttpServletResponse response) {
         String refreshToken = readCookie(request, REFRESH_TOKEN_COOKIE);
+
+        log.debug("refresh_token cookie presente: {}", refreshToken != null);
 
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new IllegalArgumentException("Refresh token no encontrado");
@@ -81,22 +87,28 @@ public class AuthServiceImpl implements AuthService {
             }
         } catch (IllegalArgumentException e) {
             throw e;
-        } catch (Exception ignored) {
-            // Redis no disponible — continuamos
+        } catch (Exception e) {
+            log.warn("Redis no disponible para blacklist check: {}", e.getMessage());
         }
 
-        String email = jwtConfig.extractUsername(refreshToken);
+        String email;
+        try {
+            email = jwtConfig.extractUsername(refreshToken);
+            log.debug("email extraído del refresh token: {}", email);
+        } catch (Exception e) {
+            log.warn("Error extrayendo username del refresh token: {}", e.getMessage());
+            throw new IllegalArgumentException("Refresh token inválido o expirado");
+        }
+
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado"));
+                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
 
         if (!user.isEnabled()) {
             throw new IllegalArgumentException("Cuenta desactivada");
         }
 
-        if (!jwtConfig.isTokenValid(refreshToken, user)) {
-            throw new IllegalArgumentException("Refresh token inválido o expirado");
-        }
-
+        // Si extractUsername() pasó sin excepción, el token ya fue validado
+        // (firma correcta + no expirado) por JJWT internamente
         String newAccessToken = jwtConfig.generateAccessToken(user);
         addCookie(response, ACCESS_TOKEN_COOKIE, newAccessToken, jwtConfig.getAccessTokenExpiration());
 

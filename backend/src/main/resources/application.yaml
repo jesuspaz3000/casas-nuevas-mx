@@ -63,3 +63,7 @@ springdoc:
 
 file:
   upload-dir: uploads
+
+logging:
+  level:
+    com.casasnuevas.backend.auth: DEBUG

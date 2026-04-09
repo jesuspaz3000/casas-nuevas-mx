@@ -46,7 +46,7 @@ public class JwtConfig {
                 .issuer(issuer)
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expiration))
-                .signWith(getSigningKey())
+                .signWith(getSigningKey(), Jwts.SIG.HS256)
                 .compact();
     }
 
