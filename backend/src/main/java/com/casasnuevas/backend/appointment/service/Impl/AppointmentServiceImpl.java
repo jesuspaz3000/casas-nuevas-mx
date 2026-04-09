@@ -8,6 +8,7 @@ import com.casasnuevas.backend.appointment.repository.AppointmentRepository;
 import com.casasnuevas.backend.appointment.service.AppointmentService;
 import com.casasnuevas.backend.client.repository.ClientRepository;
 import com.casasnuevas.backend.common.exception.ResourceNotFoundException;
+import com.casasnuevas.backend.notification.EmailService;
 import com.casasnuevas.backend.property.repository.PropertyRepository;
 import com.casasnuevas.backend.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 
@@ -28,6 +30,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final PropertyRepository propertyRepository;
     private final ClientRepository clientRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     @Override
     public List<AppointmentDTO> findAll() {
@@ -68,7 +71,17 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .status(dto.status())
                 .notes(dto.notes())
                 .build();
-        return toDTO(appointmentRepository.save(appointment));
+        AppointmentDTO result = toDTO(appointmentRepository.save(appointment));
+
+        emailService.sendAppointmentConfirmation(
+                appointment.getClient().getEmail(),
+                appointment.getClient().getName(),
+                appointment.getProperty().getTitle(),
+                appointment.getAgent().getName(),
+                appointment.getScheduledAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+        );
+
+        return result;
     }
 
     @Override

@@ -13,12 +13,16 @@ import com.casasnuevas.backend.user.repository.UserRepository;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfWriter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -32,6 +36,9 @@ public class ContractServiceImpl implements ContractService {
     private final PropertyRepository propertyRepository;
     private final ClientRepository clientRepository;
     private final UserRepository userRepository;
+
+    @Value("${file.upload-dir:uploads}")
+    private String uploadDir;
 
     @Override
     public List<ContractDTO> findAll() {
@@ -92,10 +99,12 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    @Transactional
     public byte[] generatePdf(UUID id) {
         Contract c = getOrThrow(id);
 
-        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
             Document doc = new Document(PageSize.A4, 50, 50, 60, 60);
             PdfWriter.getInstance(doc, out);
             doc.open();
@@ -135,7 +144,19 @@ public class ContractServiceImpl implements ContractService {
             doc.add(new Paragraph("       Firma del cliente                          Firma del agente", bodyFont));
 
             doc.close();
-            return out.toByteArray();
+
+            byte[] pdfBytes = out.toByteArray();
+
+            // Save to disk and update pdfUrl
+            Path contractsDir = Paths.get(uploadDir, "contracts");
+            Files.createDirectories(contractsDir);
+            String filename = c.getFolio() + ".pdf";
+            Files.write(contractsDir.resolve(filename), pdfBytes);
+
+            c.setPdfUrl("/uploads/contracts/" + filename);
+            contractRepository.save(c);
+
+            return pdfBytes;
         } catch (Exception e) {
             throw new RuntimeException("Error generating PDF for contract " + id, e);
         }

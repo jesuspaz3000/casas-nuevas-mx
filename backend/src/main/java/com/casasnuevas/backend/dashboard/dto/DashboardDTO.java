@@ -12,5 +12,10 @@ public record DashboardDTO(
         long pendingAppointments,
         long totalContracts,
         long signedContracts,
-        BigDecimal totalSalesAmount
+        BigDecimal totalSalesAmount,
+        // Estadísticas del mes actual
+        long monthlySignedContracts,
+        BigDecimal monthlyRevenue,
+        long monthlyNewClients,
+        long monthlyAppointments
 ) {}

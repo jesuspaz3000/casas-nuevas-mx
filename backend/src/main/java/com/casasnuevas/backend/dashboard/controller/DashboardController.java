@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.UUID;
 
 @RestController
@@ -68,12 +70,24 @@ public class DashboardController {
 
         BigDecimal totalSalesAmount = contractRepository.sumSalePriceByAgentId(agentId);
 
+        // Estadísticas del mes actual
+        LocalDateTime monthStart = YearMonth.now().atDay(1).atStartOfDay();
+        LocalDateTime monthEnd   = YearMonth.now().atEndOfMonth().atTime(23, 59, 59);
+
+        long monthlySignedContracts = contractRepository.countByAgentIdAndStatusAndCreatedAtBetween(
+                agentId, Contract.ContractStatus.SIGNED, monthStart, monthEnd);
+        BigDecimal monthlyRevenue = contractRepository.sumSalePriceByAgentIdAndCreatedAtBetween(
+                agentId, monthStart, monthEnd);
+        long monthlyNewClients  = clientRepository.countByAgentIdAndCreatedAtBetween(agentId, monthStart, monthEnd);
+        long monthlyAppointments = appointmentRepository.countByAgentIdAndScheduledAtBetween(agentId, monthStart, monthEnd);
+
         return new DashboardDTO(
                 totalProperties, availableProperties, soldProperties,
                 totalClients, activeClients,
                 totalAppointments, pendingAppointments,
                 totalContracts, signedContracts,
-                totalSalesAmount
+                totalSalesAmount,
+                monthlySignedContracts, monthlyRevenue, monthlyNewClients, monthlyAppointments
         );
     }
 }

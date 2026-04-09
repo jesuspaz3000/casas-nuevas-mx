@@ -18,4 +18,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     List<Appointment> findByPropertyId(UUID propertyId);
 
     List<Appointment> findByAgentIdAndScheduledAtBetween(UUID agentId, LocalDateTime from, LocalDateTime to);
+
+    long countByAgentIdAndScheduledAtBetween(UUID agentId, LocalDateTime from, LocalDateTime to);
 }
