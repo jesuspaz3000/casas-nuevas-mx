@@ -24,4 +24,7 @@ public interface AppointmentService {
     AppointmentDTO create(AppointmentCreateDTO dto);
     AppointmentDTO update(UUID id, AppointmentUpdateDTO dto);
     void delete(UUID id);
+
+    /** Reenvía al cliente el mismo correo de confirmación de cita (datos actuales de la cita). */
+    void resendConfirmationEmail(UUID id);
 }

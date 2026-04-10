@@ -137,4 +137,12 @@ public class PropertyController {
         propertyService.deletePhoto(photoId);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{propertyId}/photos/cover")
+    @Operation(summary = "Definir foto de portada")
+    public ResponseEntity<List<PropertyPhotoDTO>> setCoverPhoto(
+            @PathVariable UUID propertyId,
+            @Parameter(description = "ID de la foto que será portada") @RequestParam UUID photoId) {
+        return ResponseEntity.ok(propertyService.setCoverPhoto(propertyId, photoId));
+    }
 }

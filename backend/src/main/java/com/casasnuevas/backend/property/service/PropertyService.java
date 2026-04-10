@@ -17,4 +17,7 @@ public interface PropertyService {
     void delete(UUID id);
     List<PropertyPhotoDTO> addPhotos(UUID propertyId, List<MultipartFile> files, UUID coverId);
     void deletePhoto(UUID photoId);
+
+    /** Marca una foto como portada (las demás dejan de serlo). */
+    List<PropertyPhotoDTO> setCoverPhoto(UUID propertyId, UUID photoId);
 }

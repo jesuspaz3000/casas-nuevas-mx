@@ -5,9 +5,13 @@ import { Button } from "@/shared/components/Button";
 import { Select } from "@/shared/components/Select";
 import { PropertiesService } from "@/features/properties/services/properties.service";
 import { UsersService } from "@/features/users/services/users.service";
-import { Property, PropertyType, PropertyStatus } from "@/features/properties/types/properties.types";
+import { Property, PropertyPhoto, PropertyType, PropertyStatus } from "@/features/properties/types/properties.types";
 import type { User } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
+import {
+    PropertyPhotosPanel,
+    type DraftCoverSelection,
+} from "@/features/properties/components/PropertyPhotosPanel";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 
@@ -66,6 +70,9 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
     const [loading, setLoading]         = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
     const [agents, setAgents]           = useState<User[]>([]);
+    const [removedPhotoIds, setRemovedPhotoIds] = useState<Set<string>>(() => new Set());
+    const [pendingPhotoFiles, setPendingPhotoFiles] = useState<File[]>([]);
+    const [photoCover, setPhotoCover] = useState<DraftCoverSelection>(null);
 
     useEffect(() => {
         if (!open || !property) return;
@@ -78,6 +85,11 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
         const applyProperty = (data: Property, users: User[]) => {
             setFetched(data);
             setAgents(users);
+            setRemovedPhotoIds(new Set());
+            setPendingPhotoFiles([]);
+            const photos = data.photos ?? [];
+            const coverPh = photos.find((p) => p.isCover) ?? photos[0];
+            setPhotoCover(coverPh ? { kind: "server", id: coverPh.id } : null);
             setForm({
                 title:        data.title ?? "",
                 description:  data.description ?? "",
@@ -114,6 +126,35 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
         }
     }, [open, property, isAgent]);
 
+    useEffect(() => {
+        setPhotoCover((cur) => {
+            if (!cur || cur.kind !== "server") return cur;
+            if (!removedPhotoIds.has(cur.id)) return cur;
+            const vis = (fetched?.photos ?? []).filter((p) => !removedPhotoIds.has(p.id));
+            if (vis[0]) return { kind: "server", id: vis[0].id };
+            if (pendingPhotoFiles.length) return { kind: "pending", file: pendingPhotoFiles[0] };
+            return null;
+        });
+    }, [removedPhotoIds, fetched, pendingPhotoFiles]);
+
+    useEffect(() => {
+        setPhotoCover((cur) => {
+            if (!cur || cur.kind !== "pending") return cur;
+            if (pendingPhotoFiles.some((f) => f === cur.file)) return cur;
+            if (pendingPhotoFiles.length) return { kind: "pending", file: pendingPhotoFiles[0] };
+            const vis = (fetched?.photos ?? []).filter((p) => !removedPhotoIds.has(p.id));
+            return vis[0] ? { kind: "server", id: vis[0].id } : null;
+        });
+    }, [pendingPhotoFiles, fetched, removedPhotoIds]);
+
+    useEffect(() => {
+        if (photoCover != null) return;
+        if (pendingPhotoFiles.length === 0) return;
+        const vis = (fetched?.photos ?? []).filter((p) => !removedPhotoIds.has(p.id));
+        if (vis.length > 0) return;
+        setPhotoCover({ kind: "pending", file: pendingPhotoFiles[0] });
+    }, [photoCover, pendingPhotoFiles, fetched, removedPhotoIds]);
+
     if (!open || !property) return null;
 
     const set = (field: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -134,6 +175,40 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
             errs.price = "Ingresa un precio válido";
         setErrors(errs);
         return Object.keys(errs).length === 0;
+    };
+
+    const applyPhotoChangesAfterSave = async (propertyId: string, base: Property) => {
+        for (const photoId of removedPhotoIds) {
+            await PropertiesService.deletePhoto(photoId);
+        }
+        const idsBeforeUpload = new Set(
+            (base.photos ?? []).map((p) => p.id).filter((id) => !removedPhotoIds.has(id)),
+        );
+        let allPhotos: PropertyPhoto[];
+        if (pendingPhotoFiles.length > 0) {
+            allPhotos = await PropertiesService.addPhotos(propertyId, pendingPhotoFiles);
+        } else {
+            const fresh = await PropertiesService.findById(propertyId);
+            allPhotos = fresh.photos ?? [];
+        }
+        const newOnes = allPhotos
+            .filter((p) => !idsBeforeUpload.has(p.id))
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        let coverId: string | undefined;
+        if (photoCover?.kind === "server" && !removedPhotoIds.has(photoCover.id)) {
+            coverId = photoCover.id;
+        } else if (photoCover?.kind === "pending") {
+            const idx = pendingPhotoFiles.findIndex((f) => f === photoCover.file);
+            if (idx >= 0) coverId = newOnes[idx]?.id;
+        }
+        const sorted = [...allPhotos].sort((a, b) => a.sortOrder - b.sortOrder);
+        if (!coverId || !sorted.some((p) => p.id === coverId)) {
+            coverId = sorted[0]?.id;
+        }
+        if (coverId) {
+            await PropertiesService.setCoverPhoto(propertyId, coverId);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -161,6 +236,14 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
                       ? form.agentId || undefined
                       : undefined,
             });
+            try {
+                await applyPhotoChangesAfterSave(property.id, fetched);
+            } catch {
+                setServerError(
+                    "Los datos de la propiedad se guardaron, pero hubo un error al sincronizar las fotos. Vuelve a abrir el editor e inténtalo de nuevo.",
+                );
+                return;
+            }
             handleClose();
             onUpdated();
         } catch {
@@ -323,6 +406,25 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
                                 )}
                             </div>
                         </div>
+
+                        {fetched && !isFetching && !fetchError && (
+                            <div className={sectionClass}>
+                                <p className={sectionTitleClass}>Fotos del catálogo</p>
+                                <PropertyPhotosPanel
+                                    propertyId={property.id}
+                                    serverPhotos={(fetched.photos ?? []).filter((p) => !removedPhotoIds.has(p.id))}
+                                    pendingFiles={pendingPhotoFiles}
+                                    onPendingFilesChange={setPendingPhotoFiles}
+                                    deferredSave
+                                    draftCover={photoCover}
+                                    onDraftCoverChange={setPhotoCover}
+                                    onRemoveServerPhoto={(id) =>
+                                        setRemovedPhotoIds((prev) => new Set(prev).add(id))
+                                    }
+                                    disabled={loading}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer fijo */}

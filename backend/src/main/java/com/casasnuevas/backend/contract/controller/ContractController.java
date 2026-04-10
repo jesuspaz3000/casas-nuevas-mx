@@ -22,6 +22,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -94,6 +95,14 @@ public class ContractController {
     @Operation(summary = "Actualizar contrato")
     public ResponseEntity<ContractDTO> update(@PathVariable UUID id, @Valid @RequestBody ContractUpdateDTO dto) {
         return ResponseEntity.ok(contractService.update(id, dto));
+    }
+
+    @PostMapping("/{id}/send-client-email")
+    @Operation(summary = "Enviar resumen del contrato por correo al cliente",
+               description = "Requiere SMTP configurado (spring.mail.*) y email del cliente en su ficha.")
+    public ResponseEntity<Map<String, String>> sendClientEmail(@PathVariable UUID id) {
+        contractService.sendClientEmailNotification(id);
+        return ResponseEntity.ok(Map.of("message", "Correo enviado al cliente."));
     }
 
     @GetMapping("/{id}/pdf")

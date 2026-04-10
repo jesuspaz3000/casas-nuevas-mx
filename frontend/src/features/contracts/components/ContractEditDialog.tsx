@@ -5,8 +5,10 @@ import { Button } from "@/shared/components/Button";
 import { Select } from "@/shared/components/Select";
 import { ContractsService } from "@/features/contracts/services/contracts.service";
 import { Contract, ContractStatus, ContractUpdateDTO } from "@/features/contracts/types/contracts.types";
+import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 
 interface Props { open: boolean; contract: Contract | null; onClose: () => void; onUpdated: () => void; }
 
@@ -44,6 +46,8 @@ export function ContractEditDialog({ open, contract, onClose, onUpdated }: Props
     const [errors, setErrors]           = useState<Errors>({});
     const [loading, setLoading]         = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [emailNotice, setEmailNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
     useEffect(() => {
         if (!open || !contract) return;
@@ -52,6 +56,7 @@ export function ContractEditDialog({ open, contract, onClose, onUpdated }: Props
         setErrors({});
         setServerError(null);
         setFetched(null);
+        setEmailNotice(null);
         ContractsService.findById(contract.id)
             .then((data) => {
                 setFetched(data);
@@ -114,7 +119,27 @@ export function ContractEditDialog({ open, contract, onClose, onUpdated }: Props
     const handleClose = () => {
         setServerError(null);
         setFetchError(null);
+        setEmailNotice(null);
         onClose();
+    };
+
+    const handleSendClientEmail = async () => {
+        if (!fetched) return;
+        setEmailLoading(true);
+        setEmailNotice(null);
+        try {
+            const { message } = await ContractsService.sendClientEmail(contract.id);
+            setEmailNotice({ ok: true, text: message });
+        } catch (e: unknown) {
+            if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
+                const m = (e.response.data as { message?: string }).message;
+                setEmailNotice({ ok: false, text: typeof m === "string" && m.trim() ? m : "No se pudo enviar el correo." });
+            } else {
+                setEmailNotice({ ok: false, text: "No se pudo enviar el correo." });
+            }
+        } finally {
+            setEmailLoading(false);
+        }
     };
 
     return (
@@ -150,6 +175,17 @@ export function ContractEditDialog({ open, contract, onClose, onUpdated }: Props
                             <>
                                 {serverError && (
                                     <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{serverError}</div>
+                                )}
+                                {emailNotice && (
+                                    <div
+                                        className={
+                                            emailNotice.ok
+                                                ? "text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"
+                                                : "text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"
+                                        }
+                                    >
+                                        {emailNotice.text}
+                                    </div>
                                 )}
 
                                 <div className="text-sm text-gray-600 dark:text-gray-300 rounded-xl bg-gray-50 dark:bg-gray-800/50 px-4 py-3 space-y-1">
@@ -200,11 +236,26 @@ export function ContractEditDialog({ open, contract, onClose, onUpdated }: Props
                         )}
                     </div>
 
-                    <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 flex-shrink-0">
-                        <Button type="button" variant="ghost" size="md" onClick={handleClose}>Cancelar</Button>
-                        <Button type="submit" variant="primary" size="md" loading={loading} disabled={isFetching || !fetched}>
-                            Guardar cambios
+                    <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex flex-col gap-3 flex-shrink-0">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="md"
+                            fullWidth
+                            loading={emailLoading}
+                            loadingText="Enviando..."
+                            disabled={isFetching || !fetched || loading}
+                            onClick={handleSendClientEmail}
+                        >
+                            <EmailOutlinedIcon sx={{ fontSize: 18 }} />
+                            Enviar resumen por correo al cliente
                         </Button>
+                        <div className="flex justify-end gap-3">
+                            <Button type="button" variant="ghost" size="md" onClick={handleClose}>Cancelar</Button>
+                            <Button type="submit" variant="primary" size="md" loading={loading} disabled={isFetching || !fetched}>
+                                Guardar cambios
+                            </Button>
+                        </div>
                     </div>
                 </form>
             </div>

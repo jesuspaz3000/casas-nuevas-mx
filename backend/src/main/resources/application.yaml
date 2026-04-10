@@ -11,6 +11,10 @@ spring:
   application:
     name: casas-nuevas-backend
 
+  # Citas usan LocalDateTime “naive” = hora local de negocio; alinear Jackson y validaciones con México.
+  jackson:
+    time-zone: ${APP_TIMEZONE:America/Mexico_City}
+
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/casas_nuevas_db}
     username: postgres

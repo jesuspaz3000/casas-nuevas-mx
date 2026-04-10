@@ -18,12 +18,12 @@ public class EmailServiceImpl implements EmailService {
     private String from;
 
     @Override
-    public void sendAppointmentConfirmation(String toEmail, String clientName,
-                                             String propertyTitle, String agentName,
-                                             String scheduledAt) {
+    public boolean sendAppointmentConfirmation(String toEmail, String clientName,
+                                               String propertyTitle, String agentName,
+                                               String scheduledAt) {
         if (mailSender == null || toEmail == null || toEmail.isBlank()) {
             log.debug("Email omitido: SMTP no configurado o email de cliente vacío");
-            return;
+            return false;
         }
         try {
             SimpleMailMessage msg = new SimpleMailMessage();
@@ -45,8 +45,48 @@ public class EmailServiceImpl implements EmailService {
                     """.formatted(clientName, propertyTitle, agentName, scheduledAt));
             mailSender.send(msg);
             log.info("Email de confirmación enviado a {}", toEmail);
+            return true;
         } catch (Exception e) {
             log.warn("No se pudo enviar email a {}: {}", toEmail, e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public boolean sendContractSummaryToClient(String toEmail, String clientName, String folio,
+                                                String propertyTitle, String contractTypeLabel,
+                                                String contractStatusLabel, String agentName) {
+        if (mailSender == null || toEmail == null || toEmail.isBlank()) {
+            log.debug("Email de contrato omitido: SMTP no configurado o email vacío");
+            return false;
+        }
+        try {
+            SimpleMailMessage msg = new SimpleMailMessage();
+            msg.setFrom(from);
+            msg.setTo(toEmail);
+            msg.setSubject("Tu contrato " + folio + " - Casas Nuevas MX");
+            msg.setText("""
+                    Hola %s,
+
+                    Te compartimos el resumen de tu contrato en Casas Nuevas MX.
+
+                    Folio      : %s
+                    Propiedad  : %s
+                    Tipo       : %s
+                    Estado     : %s
+                    Agente     : %s
+
+                    El PDF del contrato lo puedes solicitar a tu agente o descargarlo desde el portal si ya está generado.
+
+                    Saludos,
+                    Casas Nuevas MX
+                    """.formatted(clientName, folio, propertyTitle, contractTypeLabel, contractStatusLabel, agentName));
+            mailSender.send(msg);
+            log.info("Email de contrato enviado a {}", toEmail);
+            return true;
+        } catch (Exception e) {
+            log.warn("No se pudo enviar email de contrato a {}: {}", toEmail, e.getMessage());
+            return false;
         }
     }
 }

@@ -21,4 +21,7 @@ public interface ContractService {
     ContractDTO create(ContractCreateDTO dto);
     ContractDTO update(UUID id, ContractUpdateDTO dto);
     byte[] generatePdf(UUID id);
+
+    /** Envía al cliente un correo de texto con resumen del contrato (folio, tipo, estado). */
+    void sendClientEmailNotification(UUID id);
 }

@@ -15,6 +15,8 @@ import EditIcon from "@mui/icons-material/Edit";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import DescriptionIcon from "@mui/icons-material/Description";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import axios from "axios";
 
 const TYPE_LABEL: Record<string, string> = {
     RESERVATION: "Reserva",
@@ -54,6 +56,15 @@ const TYPE_FILTER_OPTIONS = [
 const formatMXN = (n: number) =>
     new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
+function EmailSendSpinner({ className = "border-blue-600 dark:border-blue-400" }: { className?: string }) {
+    return (
+        <span
+            className={`inline-block size-[17px] shrink-0 rounded-full border-2 border-t-transparent animate-spin ${className}`}
+            aria-hidden
+        />
+    );
+}
+
 export default function Contracts() {
     const {
         contracts, isLoading, error,
@@ -68,6 +79,8 @@ export default function Contracts() {
     const [editContract, setEditContract]   = useState<Contract | null>(null);
     const [pdfLoadingId, setPdfLoadingId]   = useState<string | null>(null);
     const [openPdfLoadingId, setOpenPdfLoadingId] = useState<string | null>(null);
+    const [emailSendingId, setEmailSendingId] = useState<string | null>(null);
+    const [emailFlash, setEmailFlash] = useState<{ ok: boolean; text: string } | null>(null);
 
     const handleOpenStoredPdf = async (c: Contract) => {
         if (!c.pdfUrl) return;
@@ -78,6 +91,27 @@ export default function Contracts() {
             /* 401 o bloqueo de pop-up */
         } finally {
             setOpenPdfLoadingId(null);
+        }
+    };
+
+    const sendContractClientEmail = async (c: Contract) => {
+        setEmailSendingId(c.id);
+        setEmailFlash(null);
+        try {
+            const { message } = await ContractsService.sendClientEmail(c.id);
+            setEmailFlash({ ok: true, text: message });
+        } catch (e: unknown) {
+            if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
+                const m = (e.response.data as { message?: string }).message;
+                setEmailFlash({
+                    ok: false,
+                    text: typeof m === "string" && m.trim() ? m : "No se pudo enviar el correo.",
+                });
+            } else {
+                setEmailFlash({ ok: false, text: "No se pudo enviar el correo." });
+            }
+        } finally {
+            setEmailSendingId(null);
         }
     };
 
@@ -154,6 +188,21 @@ export default function Contracts() {
             className: "text-right",
             render: (c) => (
                 <div className="flex items-center justify-end gap-1 flex-wrap">
+                    <button
+                        type="button"
+                        onClick={() => void sendContractClientEmail(c)}
+                        disabled={emailSendingId === c.id}
+                        title={emailSendingId === c.id ? "Enviando correo…" : "Enviar resumen del contrato por correo al cliente"}
+                        aria-busy={emailSendingId === c.id}
+                        aria-label={emailSendingId === c.id ? "Enviando correo" : "Enviar resumen del contrato por correo al cliente"}
+                        className="relative p-1.5 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer disabled:opacity-100 disabled:cursor-wait min-w-8 min-h-8 inline-flex items-center justify-center"
+                    >
+                        {emailSendingId === c.id ? (
+                            <EmailSendSpinner />
+                        ) : (
+                            <EmailOutlinedIcon sx={{ fontSize: 17 }} />
+                        )}
+                    </button>
                     {c.pdfUrl && (
                         <button
                             type="button"
@@ -201,6 +250,28 @@ export default function Contracts() {
                         <p className="text-sm text-gray-500 dark:text-gray-400">Reservas, datos fiscales y generación de PDF</p>
                     </div>
                 </div>
+
+                {emailSendingId && (
+                    <div
+                        className="flex items-center gap-3 text-sm text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/25 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <EmailSendSpinner className="border-blue-600 dark:border-blue-300" />
+                        <span>Enviando correo al cliente…</span>
+                    </div>
+                )}
+                {!emailSendingId && emailFlash && (
+                    <div
+                        className={
+                            emailFlash.ok
+                                ? "text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3"
+                                : "text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"
+                        }
+                    >
+                        {emailFlash.text}
+                    </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-3">
                     <div className="relative flex-1 min-w-[200px] max-w-xs">

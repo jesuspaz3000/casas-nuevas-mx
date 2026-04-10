@@ -104,17 +104,37 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .status(dto.status())
                 .notes(dto.notes())
                 .build();
-        AppointmentDTO result = toDTO(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+        boolean confirmationSent = emailService.sendAppointmentConfirmation(
+                saved.getClient().getEmail(),
+                saved.getClient().getName(),
+                saved.getProperty().getTitle(),
+                saved.getAgent().getName(),
+                saved.getScheduledAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+        );
 
-        emailService.sendAppointmentConfirmation(
-                appointment.getClient().getEmail(),
+        return toDTO(saved, confirmationSent);
+    }
+
+    @Override
+    @Transactional
+    public void resendConfirmationEmail(UUID id) {
+        Appointment appointment = getOrThrow(id);
+        String to = appointment.getClient().getEmail();
+        if (to == null || to.isBlank()) {
+            throw new IllegalArgumentException("El cliente no tiene correo electrónico registrado.");
+        }
+        boolean sent = emailService.sendAppointmentConfirmation(
+                to,
                 appointment.getClient().getName(),
                 appointment.getProperty().getTitle(),
                 appointment.getAgent().getName(),
                 appointment.getScheduledAt().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
         );
-
-        return result;
+        if (!sent) {
+            throw new IllegalArgumentException(
+                    "No se pudo enviar el correo. Comprueba la configuración SMTP del servidor (spring.mail.*).");
+        }
     }
 
     @Override
@@ -147,6 +167,10 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     private AppointmentDTO toDTO(Appointment a) {
+        return toDTO(a, null);
+    }
+
+    private AppointmentDTO toDTO(Appointment a, Boolean confirmationEmailSent) {
         return new AppointmentDTO(
                 a.getId(),
                 a.getProperty().getId(), a.getProperty().getTitle(),
@@ -156,7 +180,8 @@ public class AppointmentServiceImpl implements AppointmentService {
                 a.getDurationMinutes(),
                 a.getStatus(),
                 a.getNotes(),
-                a.getCreatedAt()
+                a.getCreatedAt(),
+                confirmationEmailSent
         );
     }
 

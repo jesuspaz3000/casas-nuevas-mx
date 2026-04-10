@@ -10,6 +10,7 @@ import com.casasnuevas.backend.contract.model.Contract;
 import com.casasnuevas.backend.contract.repository.ContractRepository;
 import com.casasnuevas.backend.contract.repository.ContractSpecification;
 import com.casasnuevas.backend.contract.service.ContractService;
+import com.casasnuevas.backend.notification.EmailService;
 import com.casasnuevas.backend.property.model.Property;
 import com.casasnuevas.backend.property.repository.PropertyRepository;
 import com.casasnuevas.backend.user.repository.UserRepository;
@@ -20,6 +21,7 @@ import com.lowagie.text.pdf.PdfWriter;
 import com.lowagie.text.pdf.draw.LineSeparator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -48,6 +51,7 @@ public class ContractServiceImpl implements ContractService {
     private final PropertyRepository propertyRepository;
     private final ClientRepository clientRepository;
     private final UserRepository userRepository;
+    private final EmailService emailService;
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
@@ -96,8 +100,6 @@ public class ContractServiceImpl implements ContractService {
     @Override
     @Transactional
     public ContractDTO create(ContractCreateDTO dto) {
-        String folio = generateFolio();
-
         Property property = propertyRepository.findById(dto.propertyId())
                 .orElseThrow(() -> new ResourceNotFoundException("Property", dto.propertyId()));
         if (property.getStatus() == Property.PropertyStatus.SOLD) {
@@ -111,23 +113,38 @@ public class ContractServiceImpl implements ContractService {
                             + "Fírmalo, cancélalo o edítalo antes de crear otro sobre la misma propiedad.");
         }
 
-        Contract contract = Contract.builder()
-                .folio(folio)
-                .property(property)
-                .client(clientRepository.findById(dto.clientId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Client", dto.clientId())))
-                .agent(userRepository.findById(dto.agentId())
-                        .orElseThrow(() -> new ResourceNotFoundException("User", dto.agentId())))
-                .contractType(dto.contractType())
-                .status(Contract.ContractStatus.PENDING_SIGNATURE)
-                .reservationPrice(dto.reservationPrice())
-                .salePrice(dto.salePrice())
-                .clientRfc(dto.clientRfc())
-                .clientAddress(dto.clientAddress())
-                .clientCfdiUse(dto.clientCfdiUse())
-                .build();
+        var client = clientRepository.findById(dto.clientId())
+                .orElseThrow(() -> new ResourceNotFoundException("Client", dto.clientId()));
+        var agent = userRepository.findById(dto.agentId())
+                .orElseThrow(() -> new ResourceNotFoundException("User", dto.agentId()));
 
-        return toDTO(contractRepository.save(contract));
+        for (int attempt = 0; attempt < 15; attempt++) {
+            String folio = generateFolio();
+            if (contractRepository.findByFolio(folio).isPresent()) {
+                continue;
+            }
+            Contract contract = Contract.builder()
+                    .folio(folio)
+                    .property(property)
+                    .client(client)
+                    .agent(agent)
+                    .contractType(dto.contractType())
+                    .status(Contract.ContractStatus.PENDING_SIGNATURE)
+                    .reservationPrice(dto.reservationPrice())
+                    .salePrice(dto.salePrice())
+                    .clientRfc(dto.clientRfc())
+                    .clientAddress(dto.clientAddress())
+                    .clientCfdiUse(dto.clientCfdiUse())
+                    .build();
+            try {
+                return toDTO(contractRepository.save(contract));
+            } catch (DataIntegrityViolationException ex) {
+                if (!isUniqueConstraintViolation(ex)) {
+                    throw ex;
+                }
+            }
+        }
+        throw new IllegalStateException("No se pudo generar un folio único. Intenta de nuevo.");
     }
 
     @Override
@@ -147,6 +164,28 @@ public class ContractServiceImpl implements ContractService {
         }
 
         return toDTO(contractRepository.save(contract));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void sendClientEmailNotification(UUID id) {
+        Contract contract = getOrThrow(id);
+        String to = contract.getClient().getEmail();
+        if (to == null || to.isBlank()) {
+            throw new IllegalArgumentException("El cliente no tiene correo electrónico registrado.");
+        }
+        boolean sent = emailService.sendContractSummaryToClient(
+                to,
+                contract.getClient().getName(),
+                contract.getFolio(),
+                contract.getProperty().getTitle(),
+                formatContractType(contract.getContractType()),
+                formatContractStatus(contract.getStatus()),
+                contract.getAgent().getName());
+        if (!sent) {
+            throw new IllegalArgumentException(
+                    "No se pudo enviar el correo. Comprueba la configuración SMTP del servidor (spring.mail.*).");
+        }
     }
 
     /** Compraventa firmada → propiedad vendida; reserva firmada → propiedad reservada. */
@@ -274,15 +313,36 @@ public class ContractServiceImpl implements ContractService {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
-    /** Folio único por día + sufijo aleatorio (evita colisiones por count() o solicitudes concurrentes). */
+    /**
+     * Folio único: fecha + UUID sin guiones (32 hex). Cabe en columna 64 y evita colisiones del antiguo
+     * sufijo de 6 caracteres o truncamientos si la columna en BD era más corta que el valor generado.
+     */
     private String generateFolio() {
         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase(Locale.ROOT);
+        String suffix = UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
         return String.format("CNMX-%s-%s", date, suffix);
+    }
+
+    /** Solo reintentar creación ante violación de unicidad (p. ej. folio duplicado), no ante FK u otros. */
+    private static boolean isUniqueConstraintViolation(DataIntegrityViolationException ex) {
+        String m = Optional.ofNullable(ex.getMostSpecificCause())
+                .map(Throwable::getMessage)
+                .map(String::toLowerCase)
+                .orElse("");
+        return m.contains("unique") || m.contains("duplicate key");
     }
 
     private String formatContractType(Contract.ContractType type) {
         return type == Contract.ContractType.RESERVATION ? "Reserva" : "Compraventa";
+    }
+
+    private String formatContractStatus(Contract.ContractStatus status) {
+        return switch (status) {
+            case DRAFT -> "Borrador";
+            case PENDING_SIGNATURE -> "Pendiente de firma";
+            case SIGNED -> "Firmado";
+            case CANCELLED -> "Cancelado";
+        };
     }
 
     private String nvl(String value) {

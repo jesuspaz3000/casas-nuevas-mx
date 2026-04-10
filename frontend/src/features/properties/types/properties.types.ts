@@ -70,6 +70,12 @@ export interface PropertyFilterParams {
     type?: PropertyType;
     status?: PropertyStatus;
     city?: string;
+    neighborhood?: string;
+    priceMin?: number;
+    priceMax?: number;
+    bedroomsMin?: number;
+    bathroomsMin?: number;
+    areaM2Min?: number;
     limit: number;
     offset: number;
 }

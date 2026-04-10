@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -155,6 +156,25 @@ public class PropertyServiceImpl implements PropertyService {
         photoRepository.delete(photo);
     }
 
+    @Override
+    @Transactional
+    public List<PropertyPhotoDTO> setCoverPhoto(UUID propertyId, UUID photoId) {
+        Property property = getOrThrow(propertyId);
+        PropertyPhoto target = photoRepository.findById(photoId)
+                .orElseThrow(() -> new ResourceNotFoundException("PropertyPhoto", photoId));
+        if (!target.getProperty().getId().equals(propertyId)) {
+            throw new IllegalArgumentException("La foto no pertenece a esta propiedad");
+        }
+        for (PropertyPhoto p : property.getPhotos()) {
+            p.setCover(p.getId().equals(photoId));
+        }
+        propertyRepository.save(property);
+        return property.getPhotos().stream()
+                .sorted(Comparator.comparing(PropertyPhoto::getSortOrder))
+                .map(this::toPhotoDTO)
+                .toList();
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private String saveFile(MultipartFile file, UUID propertyId) {
@@ -163,6 +183,7 @@ public class PropertyServiceImpl implements PropertyService {
             Files.createDirectories(dir);
             String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
             Files.copy(file.getInputStream(), dir.resolve(filename));
+            // Ruta pública relativa al context-path (p. ej. /api → GET /api/uploads/...)
             return "/uploads/properties/" + propertyId + "/" + filename;
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to save file", e);

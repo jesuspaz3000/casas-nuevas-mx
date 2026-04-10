@@ -14,6 +14,8 @@ export interface Appointment {
     status: AppointmentStatus;
     notes: string | null;
     createdAt: string;
+    /** Presente en la respuesta de `POST /appointments` (crear): si se envió el correo al cliente. */
+    confirmationEmailSent?: boolean;
 }
 
 export interface AppointmentCreateDTO {

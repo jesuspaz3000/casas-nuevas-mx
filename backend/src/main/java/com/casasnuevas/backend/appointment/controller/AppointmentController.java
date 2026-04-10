@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -106,6 +107,14 @@ public class AppointmentController {
     @Operation(summary = "Actualizar cita")
     public ResponseEntity<AppointmentDTO> update(@PathVariable UUID id, @Valid @RequestBody AppointmentUpdateDTO dto) {
         return ResponseEntity.ok(appointmentService.update(id, dto));
+    }
+
+    @PostMapping("/{id}/send-confirmation")
+    @Operation(summary = "Reenviar correo de confirmación al cliente",
+               description = "Mismo contenido que al crear la cita; útil si falló el envío o cambió el horario.")
+    public ResponseEntity<Map<String, String>> sendConfirmation(@PathVariable UUID id) {
+        appointmentService.resendConfirmationEmail(id);
+        return ResponseEntity.ok(Map.of("message", "Correo de confirmación enviado al cliente."));
     }
 
     @DeleteMapping("/{id}")

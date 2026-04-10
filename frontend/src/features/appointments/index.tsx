@@ -19,6 +19,9 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ViewListIcon from "@mui/icons-material/ViewList";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import axios from "axios";
+import { AppointmentsService } from "@/features/appointments/services/appointments.service";
 
 /* ── Badges ─────────────────────────────────────────────── */
 const STATUS_LABEL: Record<string, string> = {
@@ -57,6 +60,16 @@ function formatTimeRange(iso: string, durationMinutes?: number) {
     return `${t0} – ${t1}`;
 }
 
+/** Spinner compacto para botón de enviar correo (mismo tamaño aprox. que icono MUI ~17px). */
+function EmailSendSpinner({ className = "border-blue-600 dark:border-blue-400" }: { className?: string }) {
+    return (
+        <span
+            className={`inline-block size-[17px] shrink-0 rounded-full border-2 border-t-transparent animate-spin ${className}`}
+            aria-hidden
+        />
+    );
+}
+
 export default function Appointments() {
     const authUser = useAuthStore((s) => s.user);
     const {
@@ -84,6 +97,10 @@ export default function Appointments() {
     const [editAppointment, setEditAppointment]   = useState<Appointment | null>(null);
     const [deleteAppointment, setDeleteAppointment] = useState<Appointment | null>(null);
     const [deleteLoading, setDeleteLoading]       = useState(false);
+    const [emailSendingId, setEmailSendingId]     = useState<string | null>(null);
+    const [emailFlash, setEmailFlash]             = useState<{ ok: boolean; text: string } | null>(null);
+    /** Tras crear cita (calendario o lista): aviso sobre envío de correo al cliente. */
+    const [createFlash, setCreateFlash]           = useState<{ variant: "success" | "warning"; text: string } | null>(null);
 
     const bumpCalendar = () => setCalendarRefreshToken((n) => n + 1);
 
@@ -118,6 +135,28 @@ export default function Appointments() {
         }
     }, [authUser?.id, authUser?.role]);
 
+    const sendAppointmentEmail = async (a: Appointment) => {
+        setEmailSendingId(a.id);
+        setEmailFlash(null);
+        setCreateFlash(null);
+        try {
+            const { message } = await AppointmentsService.sendConfirmationEmail(a.id);
+            setEmailFlash({ ok: true, text: message });
+        } catch (e: unknown) {
+            if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
+                const m = (e.response.data as { message?: string }).message;
+                setEmailFlash({
+                    ok: false,
+                    text: typeof m === "string" && m.trim() ? m : "No se pudo enviar el correo.",
+                });
+            } else {
+                setEmailFlash({ ok: false, text: "No se pudo enviar el correo." });
+            }
+        } finally {
+            setEmailSendingId(null);
+        }
+    };
+
     const handleDelete = async () => {
         if (!deleteAppointment) return;
         setDeleteLoading(true);
@@ -131,6 +170,7 @@ export default function Appointments() {
 
     const openCreateFromToolbar = () => {
         setCreatePrefill({ agentId: calendarAgentId || undefined });
+        setCreateFlash(null);
         setCreateOpen(true);
     };
 
@@ -189,6 +229,21 @@ export default function Appointments() {
             className: "text-right",
             render: (a) => (
                 <div className="flex items-center justify-end gap-1">
+                    <button
+                        type="button"
+                        onClick={() => void sendAppointmentEmail(a)}
+                        disabled={emailSendingId === a.id}
+                        title={emailSendingId === a.id ? "Enviando correo…" : "Enviar correo de confirmación al cliente"}
+                        aria-busy={emailSendingId === a.id}
+                        aria-label={emailSendingId === a.id ? "Enviando correo" : "Enviar correo de confirmación al cliente"}
+                        className="relative p-1.5 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer disabled:opacity-100 disabled:cursor-wait min-w-8 min-h-8 inline-flex items-center justify-center"
+                    >
+                        {emailSendingId === a.id ? (
+                            <EmailSendSpinner />
+                        ) : (
+                            <EmailOutlinedIcon sx={{ fontSize: 17 }} />
+                        )}
+                    </button>
                     <button onClick={() => setEditAppointment(a)} title="Editar cita"
                         className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer">
                         <EditIcon sx={{ fontSize: 17 }} />
@@ -267,6 +322,40 @@ export default function Appointments() {
                 {error && view === "list" && (
                     <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{error}</div>
                 )}
+                {createFlash && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className={
+                            createFlash.variant === "success"
+                                ? "text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3"
+                                : "text-sm text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-3"
+                        }
+                    >
+                        {createFlash.text}
+                    </div>
+                )}
+                {emailSendingId && view === "list" && (
+                    <div
+                        className="flex items-center gap-3 text-sm text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-900/25 border border-blue-200 dark:border-blue-800 rounded-xl px-4 py-3"
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <EmailSendSpinner className="border-blue-600 dark:border-blue-300" />
+                        <span>Enviando correo al cliente…</span>
+                    </div>
+                )}
+                {!emailSendingId && emailFlash && view === "list" && (
+                    <div
+                        className={
+                            emailFlash.ok
+                                ? "text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-3"
+                                : "text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3"
+                        }
+                    >
+                        {emailFlash.text}
+                    </div>
+                )}
 
                 {view === "calendar" &&
                     (calendarReady && calendarWeek ? (
@@ -279,6 +368,7 @@ export default function Appointments() {
                             isAgentRole={authUser?.role === "AGENT"}
                             refreshToken={calendarRefreshToken}
                             onConfirmSelection={({ scheduledAt, durationMinutes }) => {
+                                setCreateFlash(null);
                                 setCreatePrefill({
                                     agentId: calendarAgentId || undefined,
                                     scheduledAt,
@@ -316,7 +406,28 @@ export default function Appointments() {
                 initialAgentId={createPrefill.agentId}
                 initialScheduledAt={createPrefill.scheduledAt}
                 initialDurationMinutes={createPrefill.durationMinutes}
-                onCreated={() => { refetch(); bumpCalendar(); setCreatePrefill({}); }}
+                onCreated={(created) => {
+                    refetch();
+                    bumpCalendar();
+                    setCreatePrefill({});
+                    setEmailFlash(null);
+                    if (created.confirmationEmailSent === true) {
+                        setCreateFlash({
+                            variant: "success",
+                            text: `Se envió un correo de confirmación a ${created.clientName}.`,
+                        });
+                    } else if (created.confirmationEmailSent === false) {
+                        setCreateFlash({
+                            variant: "warning",
+                            text: `La cita se guardó, pero no se pudo enviar el correo a ${created.clientName} (sin correo, SMTP no configurado o error de envío). Puedes reintentar desde la lista con el ícono de correo.`,
+                        });
+                    } else {
+                        setCreateFlash({
+                            variant: "success",
+                            text: `Cita registrada para ${created.clientName}. Si el servidor lo permite, se envió un correo de confirmación.`,
+                        });
+                    }
+                }}
             />
             <AppointmentEditDialog
                 open={editAppointment !== null}

@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/shared/components/Button";
 import { Select } from "@/shared/components/Select";
+import { localDatetimeInputToApi } from "@/shared/utils/appointmentLocalDateTime";
 import { AppointmentsService } from "@/features/appointments/services/appointments.service";
 import { Appointment, AppointmentStatus } from "@/features/appointments/types/appointments.types";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 
 interface Props { open: boolean; appointment: Appointment | null; onClose: () => void; onUpdated: () => void; }
 
@@ -50,10 +52,12 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
     const [errors, setErrors]           = useState<Errors>({});
     const [loading, setLoading]         = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
+    const [emailLoading, setEmailLoading] = useState(false);
+    const [emailNotice, setEmailNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
     useEffect(() => {
         if (!open || !appointment) return;
-        setIsFetching(true); setFetchError(null); setErrors({}); setServerError(null); setFetched(null);
+        setIsFetching(true); setFetchError(null); setErrors({});         setServerError(null); setFetched(null); setEmailNotice(null);
         AppointmentsService.findById(appointment.id)
             .then((data) => {
                 setFetched(data);
@@ -90,7 +94,7 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
         setLoading(true);
         try {
             await AppointmentsService.update(appointment.id, {
-                scheduledAt: new Date(form.scheduledAt).toISOString(),
+                scheduledAt: localDatetimeInputToApi(form.scheduledAt),
                 durationMinutes: Number(form.durationMinutes) || 60,
                 status:      form.status as AppointmentStatus,
                 notes:       form.notes || undefined,
@@ -109,7 +113,26 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
         }
     };
 
-    const handleClose = () => { setErrors({}); setServerError(null); setFetchError(null); onClose(); };
+    const handleClose = () => { setErrors({}); setServerError(null); setFetchError(null); setEmailNotice(null); onClose(); };
+
+    const handleSendConfirmationEmail = async () => {
+        if (!fetched) return;
+        setEmailLoading(true);
+        setEmailNotice(null);
+        try {
+            const { message } = await AppointmentsService.sendConfirmationEmail(appointment.id);
+            setEmailNotice({ ok: true, text: message });
+        } catch (e: unknown) {
+            if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
+                const m = (e.response.data as { message?: string }).message;
+                setEmailNotice({ ok: false, text: typeof m === "string" && m.trim() ? m : "No se pudo enviar el correo." });
+            } else {
+                setEmailNotice({ ok: false, text: "No se pudo enviar el correo." });
+            }
+        } finally {
+            setEmailLoading(false);
+        }
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -136,6 +159,17 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                     <div className="px-6 py-5 flex flex-col gap-6">
                         {fetchError  && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{fetchError}</div>}
                         {serverError && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{serverError}</div>}
+                        {emailNotice && (
+                            <div
+                                className={
+                                    emailNotice.ok
+                                        ? "text-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-4 py-2.5"
+                                        : "text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5"
+                                }
+                            >
+                                {emailNotice.text}
+                            </div>
+                        )}
 
                         {/* Info de solo lectura */}
                         <div className="flex flex-col gap-3">
@@ -185,9 +219,23 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                     </div>
 
                     {/* Footer */}
-                    <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
-                        <Button type="button" variant="secondary" fullWidth onClick={handleClose} disabled={loading}>Cancelar</Button>
-                        <Button type="submit" variant="primary" fullWidth loading={loading} loadingText="Guardando..." disabled={isFetching || !!fetchError}>Guardar cambios</Button>
+                    <div className="flex flex-col gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            fullWidth
+                            loading={emailLoading}
+                            loadingText="Enviando..."
+                            disabled={isFetching || !!fetchError || loading}
+                            onClick={handleSendConfirmationEmail}
+                        >
+                            <EmailOutlinedIcon sx={{ fontSize: 18 }} />
+                            Enviar correo de confirmación al cliente
+                        </Button>
+                        <div className="flex gap-3">
+                            <Button type="button" variant="secondary" fullWidth onClick={handleClose} disabled={loading}>Cancelar</Button>
+                            <Button type="submit" variant="primary" fullWidth loading={loading} loadingText="Guardando..." disabled={isFetching || !!fetchError}>Guardar cambios</Button>
+                        </div>
                     </div>
                 </form>
             </div>

@@ -63,4 +63,10 @@ export const ContractsService = {
         a.remove();
         window.URL.revokeObjectURL(url);
     },
+
+    /** Envía al cliente un correo de texto con resumen del contrato (requiere SMTP en el servidor). */
+    sendClientEmail: async (id: string): Promise<{ message: string }> => {
+        const res = await ApiService.post<{ message: string }>(`/contracts/${id}/send-client-email`, {});
+        return res.data;
+    },
 };

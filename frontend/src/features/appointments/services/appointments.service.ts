@@ -41,4 +41,10 @@ export const AppointmentsService = {
     remove: async (id: string): Promise<void> => {
         await ApiService.delete(`/appointments/${id}`);
     },
+
+    /** Reenvía al cliente el correo de confirmación de cita (mismo texto que al crear). */
+    sendConfirmationEmail: async (id: string): Promise<{ message: string }> => {
+        const res = await ApiService.post<{ message: string }>(`/appointments/${id}/send-confirmation`, {});
+        return res.data;
+    },
 };

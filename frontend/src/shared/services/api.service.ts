@@ -3,13 +3,8 @@ import { AxiosResponse, AxiosRequestConfig } from "axios";
 
 type BodyData = object | FormData;
 
-function resolveConfig(data?: BodyData, config?: AxiosRequestConfig): AxiosRequestConfig {
-    if (data instanceof FormData) {
-        return {
-            ...config,
-            headers: { ...config?.headers, "Content-Type": "multipart/form-data" },
-        };
-    }
+/** Subidas multipart deben usar `fetch` (p. ej. `PropertiesService.addPhotos`): el cliente axios fija JSON por defecto. */
+function resolveConfig(_data?: BodyData, config?: AxiosRequestConfig): AxiosRequestConfig {
     return config ?? {};
 }
 

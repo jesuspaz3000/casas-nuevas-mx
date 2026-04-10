@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/shared/components/Button";
 import { Select } from "@/shared/components/Select";
 import { AppointmentsService } from "@/features/appointments/services/appointments.service";
-import { AppointmentCreateDTO, AppointmentStatus } from "@/features/appointments/types/appointments.types";
+import { Appointment, AppointmentCreateDTO, AppointmentStatus } from "@/features/appointments/types/appointments.types";
 import { PropertiesService } from "@/features/properties/services/properties.service";
 import { ClientsService } from "@/features/clients/services/clients.service";
 import { UsersService } from "@/features/users/services/users.service";
@@ -12,6 +12,7 @@ import { Property } from "@/features/properties/types/properties.types";
 import { Client } from "@/features/clients/types/clients.types";
 import type { User } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
+import { localDatetimeInputToApi } from "@/shared/utils/appointmentLocalDateTime";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
@@ -19,7 +20,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 interface Props {
     open: boolean;
     onClose: () => void;
-    onCreated: () => void;
+    onCreated: (created: Appointment) => void;
     /** Desde calendario: agente, inicio y duración sugeridos */
     initialAgentId?: string;
     initialScheduledAt?: string;
@@ -196,17 +197,17 @@ export function AppointmentCreateDialog({
                 propertyId: form.propertyId,
                 clientId: form.clientId,
                 agentId: isAgent ? authUser!.id : form.agentId,
-                scheduledAt: new Date(form.scheduledAt).toISOString(),
+                scheduledAt: localDatetimeInputToApi(form.scheduledAt),
                 durationMinutes: Number(form.durationMinutes) || 60,
                 status: form.status as AppointmentStatus,
                 notes: form.notes || undefined,
             };
-            await AppointmentsService.create(dto);
+            const created = await AppointmentsService.create(dto);
             setForm(EMPTY);
             setErrors({});
             setServerError(null);
             onClose();
-            onCreated();
+            onCreated(created);
         } catch (e: unknown) {
             if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
                 const m = (e.response.data as { message?: string }).message;

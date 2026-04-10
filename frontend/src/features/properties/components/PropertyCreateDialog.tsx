@@ -8,6 +8,7 @@ import { UsersService } from "@/features/users/services/users.service";
 import { PropertyCreateDTO, PropertyType, PropertyStatus } from "@/features/properties/types/properties.types";
 import type { User } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
+import { PropertyPhotosPanel } from "@/features/properties/components/PropertyPhotosPanel";
 import CloseIcon from "@mui/icons-material/Close";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
 
@@ -64,9 +65,11 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
     const [loading, setLoading]         = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
     const [agents, setAgents]           = useState<User[]>([]);
+    const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
 
     useEffect(() => {
         if (!open) return;
+        setPendingPhotos([]);
         if (isAgent) {
             setAgents([]);
             setForm({ ...EMPTY, agentId: authUser?.id ?? "" });
@@ -123,8 +126,23 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                 areaM2:       form.areaM2    ? Number(form.areaM2)    : undefined,
                 agentId:      isAgent ? authUser!.id : form.agentId || undefined,
             };
-            await PropertiesService.create(dto);
-            handleClose();
+            const created = await PropertiesService.create(dto);
+            if (pendingPhotos.length > 0) {
+                try {
+                    await PropertiesService.addPhotos(created.id, pendingPhotos);
+                } catch {
+                    setServerError(
+                        "La propiedad se creó, pero no se pudieron subir las imágenes. Ábrela en Editar para intentar de nuevo.",
+                    );
+                    setLoading(false);
+                    return;
+                }
+            }
+            setPendingPhotos([]);
+            setForm(EMPTY);
+            setErrors({});
+            setServerError(null);
+            onClose();
             onCreated();
         } catch {
             setServerError("No se pudo crear la propiedad. Verifica los datos.");
@@ -137,6 +155,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
         setForm(EMPTY);
         setErrors({});
         setServerError(null);
+        setPendingPhotos([]);
         onClose();
     };
 
@@ -254,6 +273,18 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                                     <input type="number" min="0" placeholder="0" value={form.areaM2} onChange={set("areaM2")} className={inputClass} />
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Imágenes (se suben al crear) */}
+                        <div className={sectionClass}>
+                            <p className={sectionTitleClass}>Imágenes del catálogo</p>
+                            <PropertyPhotosPanel
+                                propertyId={null}
+                                serverPhotos={[]}
+                                pendingFiles={pendingPhotos}
+                                onPendingFilesChange={setPendingPhotos}
+                                disabled={loading}
+                            />
                         </div>
 
                         {/* Agente */}

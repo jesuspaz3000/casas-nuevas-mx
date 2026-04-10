@@ -18,7 +18,7 @@ import java.math.BigDecimal;
 @Table(name = "contracts")
 public class Contract extends BaseEntity {
 
-    @Column(name = "folio", unique = true, nullable = false, length = 30)
+    @Column(name = "folio", unique = true, nullable = false, length = 64)
     private String folio;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -58,8 +58,9 @@ public class Contract extends BaseEntity {
     private String clientCfdiUse;
 
     // Datos fiscales empresa (valores por defecto vía @Builder.Default; sin esto el builder deja null en BD)
+    /** RFC persona moral puede ser 12 caracteres; el demo usa 14 — la columna debe alojarlo (antes 13 truncaba el INSERT). */
     @Builder.Default
-    @Column(name = "company_rfc", length = 13)
+    @Column(name = "company_rfc", length = 20)
     private String companyRfc = "CNMX8506269H50";
 
     @Builder.Default
