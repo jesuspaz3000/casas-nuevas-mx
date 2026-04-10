@@ -1,3 +1,5 @@
+# Red fija: en algunos VPS el DNS entre contenedores falla (UnknownHost) y host.docker.internal:puerto da "connection refused".
+# Las IPs 172.30.0.10 / 172.30.0.11 evitan DNS y el salto al host; no hace falta publicar Postgres en el host.
 services:
   postgres:
     image: postgres:18
@@ -8,54 +10,43 @@ services:
       POSTGRES_PASSWORD: litonaso
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
-    # Publica 5432 en el host: el backend conecta vía host.docker.internal (evita DNS roto entre contenedores en algunos VPS).
-    ports:
-      - "5432:5432"
     networks:
       casas-network:
-        aliases:
-          - postgres
+        ipv4_address: 172.30.0.10
     restart: always
 
   redis:
     image: redis:7-alpine
     container_name: casas-redis
     ports:
-      - "6380:6379"   # 👈 diferente puerto externo
+      - "6380:6379"
     networks:
       casas-network:
-        aliases:
-          - redis
+        ipv4_address: 172.30.0.11
     restart: always
 
   backend:
     build: ./backend
     container_name: casas-backend
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_PASSWORD: litonaso
       JWT_SECRET: CAMBIA_ESTE_SECRET
       JWT_ISSUER: casas-nuevas-backend
-      # Mismo patrón que Postgres: puerto publicado en el host (6380→6379 arriba).
-      REDIS_HOST: host.docker.internal
-      REDIS_PORT: "6380"
+      REDIS_HOST: 172.30.0.11
+      REDIS_PORT: "6379"
       SUPERADMIN_EMAIL: admin@admin.com
       SUPERADMIN_PASSWORD: qwerty.123
       MAIL_HOST: smtp.gmail.com
       MAIL_PORT: 587
       MAIL_USERNAME: veyito30000@gmail.com
       MAIL_PASSWORD: qrcelhttsykflffs
-      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/casas_nuevas_db?sslmode=disable
-      # En algunos VPS Java resuelve IPv6 primero; forzar IPv4 evita timeouts raros hacia Postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://172.30.0.10:5432/casas_nuevas_db?sslmode=disable
       JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     volumes:
       - ./backend/uploads:/app/uploads
     ports:
       - "8081:8080"
-    # Sin healthcheck en postgres: en algunos VPS pg_isready marca unhealthy y bloquea todo el stack.
-    # El backend (perfil docker) espera hasta 3 min la 1ª conexión Hikari; restart: always reintenta si Postgres aún inicia.
     depends_on:
       - postgres
       - redis
@@ -80,3 +71,6 @@ volumes:
 networks:
   casas-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/16
