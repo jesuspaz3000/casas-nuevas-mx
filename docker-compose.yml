@@ -25,6 +25,7 @@ services:
     build: ./backend
     container_name: casas-backend
     environment:
+      SPRING_PROFILES_ACTIVE: docker
       DB_PASSWORD: litonaso
       JWT_SECRET: CAMBIA_ESTE_SECRET
       JWT_ISSUER: casas-nuevas-backend
@@ -37,8 +38,6 @@ services:
       MAIL_USERNAME: veyito30000@gmail.com
       MAIL_PASSWORD: qrcelhttsykflffs
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/casas_nuevas_db
-      # Primer arranque de Postgres en VPS puede tardar (Hikari por defecto ~30s).
-      SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT: "180000"
     volumes:
       - ./backend/uploads:/app/uploads
     ports:

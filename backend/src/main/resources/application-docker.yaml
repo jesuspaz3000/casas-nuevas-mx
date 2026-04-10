@@ -1,0 +1,6 @@
+# Perfil usado solo en docker-compose (evita SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT:
+# en SB4 puede ligarse mal a spring.datasource.hikari.connection → error al bindear).
+spring:
+  datasource:
+    hikari:
+      connection-timeout: 180000
