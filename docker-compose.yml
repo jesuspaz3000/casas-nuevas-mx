@@ -1,5 +1,5 @@
-# Red fija: en algunos VPS el DNS entre contenedores falla (UnknownHost) y host.docker.internal:puerto da "connection refused".
-# Las IPs 172.30.0.10 / 172.30.0.11 evitan DNS y el salto al host; no hace falta publicar Postgres en el host.
+# Misma red de compose: el DNS interno resuelve los nombres de servicio (postgres, redis).
+# Si en tu VPS fallara el DNS entre contenedores, fija SPRING_DATASOURCE_URL / REDIS_HOST / POSTGRES_WAIT_HOST a IPs.
 services:
   postgres:
     image: postgres:18
@@ -9,19 +9,18 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: litonaso
     # Evita fallos raros de init en VPS con poco /dev/shm por defecto (64 MiB).
-    shm_size: 256mb
+    shm_size: "256m"
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
     networks:
-      casas-network:
-        ipv4_address: 172.30.0.10
-    # Comprueba que el servidor acepte conexiones (sin -d: más tolerante en primer arranque).
+      - casas-network
+    # TCP explícito: más predecible que socket/pg_isready por defecto en algunas imágenes.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres"]
+      interval: 10s
       timeout: 5s
-      retries: 15
-      start_period: 60s
+      retries: 18
+      start_period: 120s
     restart: always
 
   redis:
@@ -30,8 +29,7 @@ services:
     ports:
       - "6380:6379"
     networks:
-      casas-network:
-        ipv4_address: 172.30.0.11
+      - casas-network
     restart: always
 
   backend:
@@ -42,7 +40,7 @@ services:
       DB_PASSWORD: litonaso
       JWT_SECRET: CAMBIA_ESTE_SECRET
       JWT_ISSUER: casas-nuevas-backend
-      REDIS_HOST: 172.30.0.11
+      REDIS_HOST: redis
       REDIS_PORT: "6379"
       SUPERADMIN_EMAIL: admin@admin.com
       SUPERADMIN_PASSWORD: qwerty.123
@@ -50,9 +48,9 @@ services:
       MAIL_PORT: 587
       MAIL_USERNAME: veyito30000@gmail.com
       MAIL_PASSWORD: qrcelhttsykflffs
-      SPRING_DATASOURCE_URL: jdbc:postgresql://172.30.0.10:5432/casas_nuevas_db?sslmode=disable
-      # docker-entrypoint.sh: misma IP hasta que el puerto acepte conexiones (evita race al iniciar).
-      POSTGRES_WAIT_HOST: 172.30.0.10
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/casas_nuevas_db?sslmode=disable
+      # docker-entrypoint.sh: mismo host que el JDBC hasta que 5432 acepte TCP.
+      POSTGRES_WAIT_HOST: postgres
       JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     volumes:
       - ./backend/uploads:/app/uploads

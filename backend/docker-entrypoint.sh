@@ -2,7 +2,7 @@
 set -e
 # Hikari puede fallar en ~1s con "connection refused" si Postgres aún no abre 5432 (init de datos).
 # Esperamos a que el puerto acepte TCP antes de arrancar Spring.
-HOST="${POSTGRES_WAIT_HOST:-172.30.0.10}"
+HOST="${POSTGRES_WAIT_HOST:-postgres}"
 PORT="${POSTGRES_WAIT_PORT:-5432}"
 MAX_TRIES="${POSTGRES_WAIT_MAX_TRIES:-90}"
 
