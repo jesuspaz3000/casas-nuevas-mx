@@ -9,7 +9,9 @@ services:
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
     networks:
-      - casas-network
+      casas-network:
+        aliases:
+          - postgres
     restart: always
 
   redis:
@@ -18,7 +20,9 @@ services:
     ports:
       - "6380:6379"   # 👈 diferente puerto externo
     networks:
-      - casas-network
+      casas-network:
+        aliases:
+          - redis
     restart: always
 
   backend:
@@ -29,7 +33,8 @@ services:
       DB_PASSWORD: litonaso
       JWT_SECRET: CAMBIA_ESTE_SECRET
       JWT_ISSUER: casas-nuevas-backend
-      REDIS_HOST: redis
+      # Nombre del contenedor (DNS fiable); el alias "redis" también existe en la red.
+      REDIS_HOST: casas-redis
       REDIS_PORT: 6379
       SUPERADMIN_EMAIL: admin@admin.com
       SUPERADMIN_PASSWORD: qwerty.123
@@ -37,8 +42,8 @@ services:
       MAIL_PORT: 587
       MAIL_USERNAME: veyito30000@gmail.com
       MAIL_PASSWORD: qrcelhttsykflffs
-      # sslmode=disable: conexión interna entre contenedores (evita negociación SSL que a veces falla)
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/casas_nuevas_db?sslmode=disable
+      # Host = nombre del contenedor (UnknownHostException con "postgres" en algunos VPS/Compose).
+      SPRING_DATASOURCE_URL: jdbc:postgresql://casas-postgres:5432/casas_nuevas_db?sslmode=disable
       # En algunos VPS Java resuelve IPv6 primero; forzar IPv4 evita timeouts raros hacia Postgres
       JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     volumes:
