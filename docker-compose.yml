@@ -1,0 +1,67 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: casas-postgres
+    environment:
+      POSTGRES_DB: casas_nuevas_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: litonaso
+    volumes:
+      - casas_postgres_data:/var/lib/postgresql/data
+    networks:
+      - casas-network
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: casas-redis
+    ports:
+      - "6380:6379"   # 👈 diferente puerto externo
+    networks:
+      - casas-network
+    restart: always
+
+  backend:
+    build: ./backend
+    container_name: casas-backend
+    environment:
+      DB_PASSWORD: litonaso
+      JWT_SECRET: CAMBIA_ESTE_SECRET
+      JWT_ISSUER: casas-nuevas-backend
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SUPERADMIN_EMAIL: admin@admin.com
+      SUPERADMIN_PASSWORD: qwerty.123
+      MAIL_HOST: smtp.gmail.com
+      MAIL_PORT: 587
+      MAIL_USERNAME: veyito30000@gmail.com
+      MAIL_PASSWORD: qrcelhttsykflffs
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/casas_nuevas_db
+    volumes:
+      - ./backend/uploads:/app/uploads
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - casas-network
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: casas-frontend
+    ports:
+      - "3001:3000"
+    depends_on:
+      - backend
+    networks:
+      - casas-network
+    restart: always
+
+volumes:
+  casas_postgres_data:
+
+networks:
+  casas-network:
+    driver: bridge
