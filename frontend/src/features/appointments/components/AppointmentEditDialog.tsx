@@ -135,11 +135,11 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-            <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full max-w-lg flex flex-col max-h-[90vh]">
+            <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full sm:max-w-lg sm:mx-auto flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
                     <div className="flex items-center gap-2.5">
                         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30">
                             <EditIcon sx={{ fontSize: 18 }} className="text-amber-600 dark:text-amber-400" />
@@ -156,7 +156,7 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
 
                 {/* Body */}
                 <form onSubmit={handleSubmit} noValidate className="overflow-y-auto flex-1">
-                    <div className="px-6 py-5 flex flex-col gap-6">
+                    <div className="px-4 sm:px-6 py-5 flex flex-col gap-6">
                         {fetchError  && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{fetchError}</div>}
                         {serverError && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{serverError}</div>}
                         {emailNotice && (
@@ -174,7 +174,7 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                         {/* Info de solo lectura */}
                         <div className="flex flex-col gap-3">
                             <p className={sectionTitleClass}>Información (solo lectura)</p>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Propiedad</label>
                                     <div className={readonlyClass}>{appointment.propertyTitle}</div>
@@ -193,7 +193,7 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                         {/* Editable */}
                         <div className="flex flex-col gap-3">
                             <p className={sectionTitleClass}>Programación</p>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Inicio</label>
                                     {isFetching ? <Skel /> : <input type="datetime-local" value={form.scheduledAt} onChange={set("scheduledAt")} className={inputClass} />}
@@ -219,7 +219,7 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                     </div>
 
                     {/* Footer */}
-                    <div className="flex flex-col gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
+                    <div className="flex flex-col gap-3 px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
                         <Button
                             type="button"
                             variant="secondary"

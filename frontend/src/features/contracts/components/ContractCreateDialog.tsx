@@ -193,10 +193,10 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
         "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-            <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full max-w-xl flex flex-col max-h-[90vh]">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+            <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full sm:max-w-xl sm:mx-auto flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
                     <div className="flex items-center gap-2.5">
                         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30">
                             <DescriptionIcon sx={{ fontSize: 18 }} className="text-blue-600 dark:text-blue-400" />
@@ -209,7 +209,7 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
                 </div>
 
                 <form onSubmit={handleSubmit} noValidate className="overflow-y-auto flex-1">
-                    <div className="px-6 py-5 flex flex-col gap-6">
+                    <div className="px-4 sm:px-6 py-5 flex flex-col gap-6">
                         {serverError && (
                             <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{serverError}</div>
                         )}
@@ -300,7 +300,7 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
                         </div>
                     </div>
 
-                    <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 flex-shrink-0">
+                    <div className="px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 flex-shrink-0">
                         <Button type="button" variant="ghost" size="md" onClick={handleClose}>Cancelar</Button>
                         <Button type="submit" variant="primary" size="md" loading={loading}>Crear contrato</Button>
                     </div>

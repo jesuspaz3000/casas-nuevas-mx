@@ -266,56 +266,66 @@ export default function Properties() {
                 </div>
 
                 {/* Filtros + botón crear */}
-                <div className="flex flex-wrap items-center gap-3">
-                    {/* Búsqueda */}
-                    <div className="relative flex-1 min-w-[200px] max-w-xs">
-                        <SearchIcon sx={{ fontSize: 18 }} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por título..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        />
+                <div className="flex flex-col gap-3">
+                    {/* Fila 1: búsqueda + botón móvil */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <SearchIcon sx={{ fontSize: 18 }} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por título..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            />
+                        </div>
+                        {/* Botón solo ícono — visible en móvil */}
+                        <button
+                            type="button"
+                            onClick={() => setCreateOpen(true)}
+                            title="Nueva propiedad"
+                            className="md:hidden flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
+                        >
+                            <AddIcon sx={{ fontSize: 20 }} />
+                        </button>
                     </div>
 
-                    {/* Tipo */}
-                    <Select
-                        value={typeFilter}
-                        onChange={(v) => setTypeFilter(v as PropertyType | "")}
-                        options={TYPE_OPTIONS}
-                        className="w-44"
-                    />
-
-                    {/* Estado */}
-                    <Select
-                        value={statusFilter}
-                        onChange={(v) => setStatusFilter(v as PropertyStatus | "")}
-                        options={STATUS_OPTIONS}
-                        className="w-44"
-                    />
-
-                    <button
-                        type="button"
-                        onClick={() => setFiltersExpanded((x) => !x)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-xl border transition-colors cursor-pointer ${
-                            filtersExpanded || hasAdvancedFilters
-                                ? "border-blue-500/60 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                                : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-                        }`}
-                    >
-                        <FilterListIcon sx={{ fontSize: 18 }} />
-                        Más filtros
-                        {hasAdvancedFilters && !filtersExpanded && (
-                            <span className="ml-0.5 w-2 h-2 rounded-full bg-blue-500" aria-hidden />
-                        )}
-                    </button>
-
-                    <div className="ml-auto">
-                        <Button variant="primary" size="md" onClick={() => setCreateOpen(true)}>
-                            <AddIcon sx={{ fontSize: 17 }} />
-                            Nueva propiedad
-                        </Button>
+                    {/* Fila 2: selects + más filtros + botón desktop */}
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Select
+                            value={typeFilter}
+                            onChange={(v) => setTypeFilter(v as PropertyType | "")}
+                            options={TYPE_OPTIONS}
+                            className="w-full md:w-44"
+                        />
+                        <Select
+                            value={statusFilter}
+                            onChange={(v) => setStatusFilter(v as PropertyStatus | "")}
+                            options={STATUS_OPTIONS}
+                            className="w-full md:w-44"
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setFiltersExpanded((x) => !x)}
+                            className={`w-full md:w-auto inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-xl border transition-colors cursor-pointer ${
+                                filtersExpanded || hasAdvancedFilters
+                                    ? "border-blue-500/60 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                    : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                            }`}
+                        >
+                            <FilterListIcon sx={{ fontSize: 18 }} />
+                            Más filtros
+                            {hasAdvancedFilters && !filtersExpanded && (
+                                <span className="ml-0.5 w-2 h-2 rounded-full bg-blue-500" aria-hidden />
+                            )}
+                        </button>
+                        {/* Botón con texto — visible en desktop */}
+                        <div className="hidden md:block md:ml-auto">
+                            <Button variant="primary" size="md" onClick={() => setCreateOpen(true)}>
+                                <AddIcon sx={{ fontSize: 17 }} />
+                                Nueva propiedad
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -441,6 +451,72 @@ export default function Properties() {
                             : "No hay propiedades registradas"
                     }
                     emptyIcon={<HomeWorkIcon sx={{ fontSize: 48 }} />}
+                    renderCard={(p, i) => (
+                        <div className="px-4 py-3 space-y-2">
+                            {/* Fila 1: foto + título/ubicación */}
+                            <div className="flex items-center gap-3">
+                                <PropertyThumb property={p} />
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] text-gray-400 tabular-nums leading-none mb-0.5">#{(page - 1) * pageSize + i + 1}</p>
+                                    <p className="font-semibold text-sm text-gray-800 dark:text-white truncate leading-snug">{p.title}</p>
+                                    {(p.city || p.state) && (
+                                        <p className="text-xs text-gray-400 truncate">{[p.city, p.state].filter(Boolean).join(", ")}</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Fila 2: badges */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE[p.type] ?? ""}`}>
+                                    {TYPE_LABEL[p.type] ?? p.type}
+                                </span>
+                                <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[p.status] ?? ""}`}>
+                                    {STATUS_LABEL[p.status] ?? p.status}
+                                </span>
+                            </div>
+
+                            {/* Fila 3: precio */}
+                            <p className="text-sm font-bold text-gray-800 dark:text-white tabular-nums">
+                                {formatPrice(p.price, p.currency)}
+                            </p>
+
+                            {/* Fila 4: specs */}
+                            <div className="flex items-center gap-3 text-xs text-gray-400">
+                                {p.bedrooms != null && (
+                                    <span className="flex items-center gap-1"><BedIcon sx={{ fontSize: 13 }} />{p.bedrooms}</span>
+                                )}
+                                {p.bathrooms != null && (
+                                    <span className="flex items-center gap-1"><BathtubIcon sx={{ fontSize: 13 }} />{p.bathrooms}</span>
+                                )}
+                                {p.areaM2 != null && (
+                                    <span className="flex items-center gap-1"><SquareFootIcon sx={{ fontSize: 13 }} />{p.areaM2} m²</span>
+                                )}
+                            </div>
+
+                            {/* Fila 5: agente */}
+                            {p.agentName && (
+                                <p className="text-xs text-gray-400 truncate">{p.agentName}</p>
+                            )}
+
+                            {/* Fila 5: acciones */}
+                            <div className="flex items-center gap-1 pt-1 border-t border-gray-100 dark:border-gray-800">
+                                <button
+                                    onClick={() => setEditProperty(p)}
+                                    title="Editar"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer"
+                                >
+                                    <EditIcon sx={{ fontSize: 17 }} />
+                                </button>
+                                <button
+                                    onClick={() => setDeleteProperty(p)}
+                                    title="Eliminar"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer"
+                                >
+                                    <DeleteOutlinedIcon sx={{ fontSize: 17 }} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 />
             </div>
 

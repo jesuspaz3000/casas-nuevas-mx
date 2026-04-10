@@ -165,12 +165,12 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
     ];
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
 
-            <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full sm:max-w-2xl sm:mx-auto flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                 {/* Header fijo */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
                     <div className="flex items-center gap-2.5">
                         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30">
                             <HomeWorkIcon sx={{ fontSize: 18 }} className="text-blue-600 dark:text-blue-400" />
@@ -184,7 +184,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
 
                 {/* Body scrollable */}
                 <form onSubmit={handleSubmit} noValidate className="overflow-y-auto flex-1">
-                    <div className="px-6 py-5 flex flex-col gap-6">
+                    <div className="px-4 sm:px-6 py-5 flex flex-col gap-6">
 
                         {serverError && (
                             <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">
@@ -200,7 +200,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                                 <input type="text" placeholder="Ej. Casa en Polanco con jardín" value={form.title} onChange={set("title")} className={inputClass} />
                                 {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title}</p>}
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Tipo</label>
                                     <Select value={form.type} onChange={setSelect("type")} options={TYPE_OPTIONS} />
@@ -230,7 +230,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                         {/* Ubicación */}
                         <div className={sectionClass}>
                             <p className={sectionTitleClass}>Ubicación</p>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Calle</label>
                                     <input type="text" placeholder="Ej. Av. Presidente Masaryk 123" value={form.street} onChange={set("street")} className={inputClass} />
@@ -240,7 +240,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                                     <input type="text" placeholder="Ej. Polanco" value={form.neighborhood} onChange={set("neighborhood")} className={inputClass} />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label className={labelClass}>Ciudad</label>
                                     <input type="text" placeholder="Ej. Ciudad de México" value={form.city} onChange={set("city")} className={inputClass} />
@@ -259,7 +259,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                         {/* Características */}
                         <div className={sectionClass}>
                             <p className={sectionTitleClass}>Características</p>
-                            <div className="grid grid-cols-3 gap-3">
+                            <div className="grid grid-cols-3 sm:grid-cols-3 gap-3">
                                 <div>
                                     <label className={labelClass}>Habitaciones</label>
                                     <input type="number" min="0" placeholder="0" value={form.bedrooms} onChange={set("bedrooms")} className={inputClass} />
@@ -273,6 +273,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                                     <input type="number" min="0" placeholder="0" value={form.areaM2} onChange={set("areaM2")} className={inputClass} />
                                 </div>
                             </div>
+
                         </div>
 
                         {/* Imágenes (se suben al crear) */}
@@ -304,7 +305,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                     </div>
 
                     {/* Footer fijo */}
-                    <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
+                    <div className="flex gap-3 px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
                         <Button type="button" variant="secondary" fullWidth onClick={handleClose} disabled={loading}>Cancelar</Button>
                         <Button type="submit" variant="primary" fullWidth loading={loading} loadingText="Creando...">Crear propiedad</Button>
                     </div>

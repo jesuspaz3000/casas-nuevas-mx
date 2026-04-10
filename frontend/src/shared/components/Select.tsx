@@ -145,7 +145,10 @@ export function Select({ value, onChange, options, disabled = false, size = "md"
                     disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
                 ].join(" ")}
             >
-                <span className={size === "sm" ? "text-gray-700 dark:text-gray-300" : ""}>
+                <span className={[
+                    "truncate",
+                    size === "sm" ? "text-gray-700 dark:text-gray-300" : "",
+                ].join(" ")}>
                     {selected?.label ?? "Seleccionar"}
                 </span>
                 <KeyboardArrowDownIcon

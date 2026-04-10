@@ -14,6 +14,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import DescriptionIcon from "@mui/icons-material/Description";
 import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import LogoutIcon from "@mui/icons-material/Logout";
+import CloseIcon from "@mui/icons-material/Close";
 import type { SvgIconComponent } from "@mui/icons-material";
 
 const ICON_MAP: Record<string, SvgIconComponent> = {
@@ -74,7 +75,7 @@ export function Sidebar({ open, collapsed, onClose, onToggleCollapse }: SidebarP
         role && item.roles.includes(role)
     );
 
-    const sidebarContent = (collapsed: boolean) => (
+    const sidebarContent = (collapsed: boolean, isMobile = false) => (
         <div className={["flex flex-col h-full bg-gray-950 border-r border-gray-800 transition-all duration-300", collapsed ? "w-16" : "w-64"].join(" ")}>
 
             {/* Logo */}
@@ -82,10 +83,20 @@ export function Sidebar({ open, collapsed, onClose, onToggleCollapse }: SidebarP
                 <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-blue-600 flex-shrink-0">
                     <HomeWorkIcon sx={{ fontSize: 20, color: "white" }} />
                 </div>
-                <div className={["min-w-0 whitespace-nowrap transition-all duration-200", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 delay-150"].join(" ")}>
+                <div className={["min-w-0 whitespace-nowrap transition-all duration-200 flex-1", collapsed ? "opacity-0 w-0 overflow-hidden" : "opacity-100 delay-150"].join(" ")}>
                     <p className="text-white font-semibold text-sm leading-tight">Casas Nuevas MX</p>
                     <p className="text-gray-500 text-xs">Panel de agentes</p>
                 </div>
+                {isMobile && (
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        aria-label="Cerrar menú"
+                    >
+                        <CloseIcon sx={{ fontSize: 20 }} />
+                    </button>
+                )}
             </div>
 
             {/* Nav */}
@@ -132,22 +143,20 @@ export function Sidebar({ open, collapsed, onClose, onToggleCollapse }: SidebarP
             />
 
             {/* Desktop sidebar */}
-            <aside className="hidden md:flex flex-col flex-shrink-0 min-h-screen">
+            <aside className="hidden md:flex flex-col flex-shrink-0 h-full">
                 {sidebarContent(collapsed)}
             </aside>
 
             {/* Mobile overlay */}
-            {open && (
-                <div className="fixed inset-0 z-40 md:hidden">
-                    <div
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                        onClick={onClose}
-                    />
-                    <aside className="absolute left-0 top-0 h-full z-50 shadow-2xl">
-                        {sidebarContent(false)}
-                    </aside>
-                </div>
-            )}
+            <div className={["fixed inset-0 z-40 md:hidden transition-all duration-300", open ? "pointer-events-auto" : "pointer-events-none"].join(" ")}>
+                <div
+                    className={["absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300", open ? "opacity-100" : "opacity-0"].join(" ")}
+                    onClick={onClose}
+                />
+                <aside className={["absolute left-0 top-0 h-full z-50 shadow-2xl transition-transform duration-300 ease-in-out", open ? "translate-x-0" : "-translate-x-full"].join(" ")}>
+                    {sidebarContent(false, true)}
+                </aside>
+            </div>
         </>
     );
 }

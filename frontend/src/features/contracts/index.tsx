@@ -273,34 +273,38 @@ export default function Contracts() {
                     </div>
                 )}
 
-                <div className="flex flex-wrap items-center gap-3">
-                    <div className="relative flex-1 min-w-[200px] max-w-xs">
-                        <SearchIcon sx={{ fontSize: 18 }} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por folio, propiedad o cliente..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                        />
+                <div className="flex flex-col gap-3">
+                    {/* Fila 1: búsqueda + botón icono móvil */}
+                    <div className="flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <SearchIcon sx={{ fontSize: 18 }} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                                type="text"
+                                placeholder="Buscar por folio, propiedad o cliente..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setCreateOpen(true)}
+                            title="Nuevo contrato"
+                            className="md:hidden flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors cursor-pointer"
+                        >
+                            <AddIcon sx={{ fontSize: 20 }} />
+                        </button>
                     </div>
-                    <Select
-                        value={statusFilter}
-                        onChange={(v) => setStatusFilter(v as ContractStatus | "")}
-                        options={STATUS_OPTIONS}
-                        className="w-48"
-                    />
-                    <Select
-                        value={typeFilter}
-                        onChange={(v) => setTypeFilter(v as ContractType | "")}
-                        options={TYPE_FILTER_OPTIONS}
-                        className="w-44"
-                    />
-                    <div className="ml-auto">
-                        <Button variant="primary" size="md" onClick={() => setCreateOpen(true)}>
-                            <AddIcon sx={{ fontSize: 17 }} />
-                            Nuevo contrato
-                        </Button>
+                    {/* Fila 2: selects + botón desktop */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <Select value={statusFilter} onChange={(v) => setStatusFilter(v as ContractStatus | "")} options={STATUS_OPTIONS} className="w-full sm:w-48" />
+                        <Select value={typeFilter} onChange={(v) => setTypeFilter(v as ContractType | "")} options={TYPE_FILTER_OPTIONS} className="w-full sm:w-44" />
+                        <div className="hidden md:block md:ml-auto">
+                            <Button variant="primary" size="md" onClick={() => setCreateOpen(true)}>
+                                <AddIcon sx={{ fontSize: 17 }} />
+                                Nuevo contrato
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -322,6 +326,61 @@ export default function Contracts() {
                     onPageSizeChange={setPageSize}
                     emptyMessage={hasFilters ? "Sin resultados para los filtros aplicados" : "No hay contratos registrados"}
                     emptyIcon={<DescriptionIcon sx={{ fontSize: 48 }} />}
+                    renderCard={(c, i) => (
+                        <div className="px-4 py-3 space-y-2">
+                            {/* Fila 1: folio + propiedad */}
+                            <div>
+                                <p className="text-[11px] text-gray-400 tabular-nums leading-none mb-0.5">#{(page - 1) * pageSize + i + 1}</p>
+                                <p className="font-mono font-semibold text-sm text-gray-800 dark:text-white truncate">{c.folio}</p>
+                                <p className="text-xs text-gray-400 truncate">{c.propertyTitle}</p>
+                            </div>
+
+                            {/* Fila 2: badges tipo + estado */}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${TYPE_BADGE[c.contractType] ?? ""}`}>
+                                    {TYPE_LABEL[c.contractType] ?? c.contractType}
+                                </span>
+                                <span className={`inline-flex shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_BADGE[c.status] ?? ""}`}>
+                                    {STATUS_LABEL[c.status] ?? c.status}
+                                </span>
+                            </div>
+
+                            {/* Fila 3: precio reserva */}
+                            <p className="text-sm font-bold text-gray-800 dark:text-white tabular-nums">
+                                {formatMXN(c.reservationPrice)}
+                            </p>
+
+                            {/* Fila 4: cliente */}
+                            <p className="text-xs text-gray-400 truncate">{c.clientName}</p>
+
+                            {/* Fila 5: agente */}
+                            {c.agentName && (
+                                <p className="text-xs text-gray-400 truncate">{c.agentName}</p>
+                            )}
+
+                            {/* Fila 6: acciones */}
+                            <div className="flex items-center gap-1 pt-1 border-t border-gray-100 dark:border-gray-800">
+                                <button type="button" onClick={() => void sendContractClientEmail(c)} disabled={emailSendingId === c.id} title="Enviar correo"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer disabled:cursor-wait">
+                                    {emailSendingId === c.id ? <EmailSendSpinner /> : <EmailOutlinedIcon sx={{ fontSize: 17 }} />}
+                                </button>
+                                {c.pdfUrl && (
+                                    <button type="button" onClick={() => handleOpenStoredPdf(c)} disabled={openPdfLoadingId === c.id} title="Abrir PDF"
+                                        className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer disabled:opacity-50">
+                                        <OpenInNewIcon sx={{ fontSize: 17 }} />
+                                    </button>
+                                )}
+                                <button type="button" onClick={() => handleDownloadPdf(c)} disabled={pdfLoadingId === c.id} title="Generar PDF"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors cursor-pointer disabled:opacity-50">
+                                    <PictureAsPdfIcon sx={{ fontSize: 17 }} />
+                                </button>
+                                <button type="button" onClick={() => setEditContract(c)} title="Editar"
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors cursor-pointer">
+                                    <EditIcon sx={{ fontSize: 17 }} />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 />
             </div>
 

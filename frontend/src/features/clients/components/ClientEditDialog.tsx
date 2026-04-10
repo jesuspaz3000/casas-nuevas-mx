@@ -142,11 +142,11 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
     const agentOptions = [{ value: "", label: "Sin agente asignado" }, ...agents.map((a) => ({ value: a.id, label: a.name }))];
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:px-4">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={handleClose} />
-            <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full max-w-xl flex flex-col max-h-[90vh]">
+            <div className="relative bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 w-full sm:max-w-xl sm:mx-auto flex flex-col max-h-[95vh] sm:max-h-[90vh]">
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
+                <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
                     <div className="flex items-center gap-2.5">
                         <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-900/30">
                             <EditIcon sx={{ fontSize: 18 }} className="text-amber-600 dark:text-amber-400" />
@@ -163,7 +163,7 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
 
                 {/* Body */}
                 <form onSubmit={handleSubmit} noValidate className="overflow-y-auto flex-1">
-                    <div className="px-6 py-5 flex flex-col gap-6">
+                    <div className="px-4 sm:px-6 py-5 flex flex-col gap-6">
                         {fetchError  && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{fetchError}</div>}
                         {serverError && <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-2.5">{serverError}</div>}
 
@@ -174,7 +174,7 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
                                 <label className={labelClass}>Nombre completo</label>
                                 {isFetching ? <Skel /> : <><input type="text" placeholder="María González" value={form.name} onChange={set("name")} className={inputClass} />{errors.name && <p className="mt-1 text-xs text-red-500">{errors.name}</p>}</>}
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Correo electrónico</label>
                                     {isFetching ? <Skel /> : <><input type="email" placeholder="maria@ejemplo.com" value={form.email} onChange={set("email")} className={inputClass} />{errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}</>}
@@ -189,7 +189,7 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
                         {/* Preferencias */}
                         <div className="flex flex-col gap-3">
                             <p className={sectionTitleClass}>Preferencias de búsqueda</p>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Tipo de propiedad</label>
                                     {isFetching ? <Skel /> : <Select value={form.interestedType} onChange={setSel("interestedType")} options={TYPE_OPTIONS} />}
@@ -199,7 +199,7 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
                                     {isFetching ? <Skel /> : <input type="text" placeholder="Ciudad de México" value={form.interestedCity} onChange={set("interestedCity")} className={inputClass} />}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Presupuesto mínimo (MXN)</label>
                                     {isFetching ? <Skel /> : <input type="number" min="0" placeholder="0" value={form.budgetMin} onChange={set("budgetMin")} className={inputClass} />}
@@ -244,7 +244,7 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
                     </div>
 
                     {/* Footer */}
-                    <div className="flex gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
+                    <div className="flex gap-3 px-4 sm:px-6 py-4 border-t border-gray-100 dark:border-gray-800 flex-shrink-0">
                         <Button type="button" variant="secondary" fullWidth onClick={handleClose} disabled={loading}>Cancelar</Button>
                         <Button type="submit" variant="primary" fullWidth loading={loading} loadingText="Guardando..." disabled={isFetching || !!fetchError}>Guardar cambios</Button>
                     </div>
