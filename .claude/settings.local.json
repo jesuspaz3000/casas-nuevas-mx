@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(wc -l \"D:/casas-nuevas-mx/frontend/src/features/users/components/\"*.tsx)"
-    ]
-  }
-}
