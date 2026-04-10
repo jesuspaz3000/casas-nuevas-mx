@@ -2,6 +2,7 @@ package com.casasnuevas.backend.appointment.service;
 
 import com.casasnuevas.backend.appointment.dto.AppointmentCreateDTO;
 import com.casasnuevas.backend.appointment.dto.AppointmentDTO;
+import com.casasnuevas.backend.appointment.dto.AppointmentFilterDTO;
 import com.casasnuevas.backend.appointment.dto.AppointmentUpdateDTO;
 
 import org.springframework.data.domain.Page;
@@ -12,7 +13,9 @@ import java.util.UUID;
 
 public interface AppointmentService {
     List<AppointmentDTO> findAll();
+    List<AppointmentDTO> findAll(AppointmentFilterDTO filter);
     Page<AppointmentDTO> findAll(Pageable pageable);
+    Page<AppointmentDTO> findAll(AppointmentFilterDTO filter, Pageable pageable);
     List<AppointmentDTO> findByAgent(UUID agentId);
     List<AppointmentDTO> findByClient(UUID clientId);
     AppointmentDTO findById(UUID id);

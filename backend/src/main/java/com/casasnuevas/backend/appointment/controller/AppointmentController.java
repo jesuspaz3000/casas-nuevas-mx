@@ -2,7 +2,9 @@ package com.casasnuevas.backend.appointment.controller;
 
 import com.casasnuevas.backend.appointment.dto.AppointmentCreateDTO;
 import com.casasnuevas.backend.appointment.dto.AppointmentDTO;
+import com.casasnuevas.backend.appointment.dto.AppointmentFilterDTO;
 import com.casasnuevas.backend.appointment.dto.AppointmentUpdateDTO;
+import com.casasnuevas.backend.appointment.model.Appointment;
 import com.casasnuevas.backend.appointment.service.AppointmentService;
 import com.casasnuevas.backend.common.util.PaginationUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -32,15 +34,18 @@ public class AppointmentController {
     public ResponseEntity<Object> findAll(
             @Parameter(description = "Resultados por página") @RequestParam(required = false) Integer limit,
             @Parameter(description = "Desplazamiento")        @RequestParam(required = false) Integer offset,
+            @Parameter(description = "Búsqueda por nombre de cliente o título de propiedad") @RequestParam(required = false) String search,
+            @Parameter(description = "Filtrar por estado")   @RequestParam(required = false) Appointment.AppointmentStatus status,
             HttpServletRequest request
     ) {
+        AppointmentFilterDTO filter = new AppointmentFilterDTO(search, status);
         if (limit != null && offset != null) {
             PaginationUtils.validate(limit, offset);
-            var page = appointmentService.findAll(PaginationUtils.toPageable(limit, offset));
+            var page = appointmentService.findAll(filter, PaginationUtils.toPageable(limit, offset));
             return ResponseEntity.ok(PaginationUtils.build(page, limit, offset,
                     request.getRequestURL().toString(), request.getQueryString()));
         }
-        return ResponseEntity.ok(appointmentService.findAll());
+        return ResponseEntity.ok(appointmentService.findAll(filter));
     }
 
     @GetMapping("/agent/{agentId}")

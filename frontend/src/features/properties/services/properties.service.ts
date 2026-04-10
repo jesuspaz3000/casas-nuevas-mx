@@ -9,6 +9,11 @@ import {
 } from "@/features/properties/types/properties.types";
 
 export const PropertiesService = {
+    findAll: async (): Promise<Property[]> => {
+        const res = await ApiService.get<Property[]>("/properties");
+        return res.data;
+    },
+
     findPaginated: async (params: PropertyFilterParams): Promise<PropertiesResponse> => {
         const query: Record<string, unknown> = { limit: params.limit, offset: params.offset };
         if (params.search)  query.search  = params.search;

@@ -1,0 +1,44 @@
+export type AppointmentStatus = "PENDING" | "CONFIRMED" | "CANCELLED" | "DONE";
+
+export interface Appointment {
+    id: string;
+    propertyId: string;
+    propertyTitle: string;
+    clientId: string;
+    clientName: string;
+    agentId: string;
+    agentName: string;
+    scheduledAt: string;
+    status: AppointmentStatus;
+    notes: string | null;
+    createdAt: string;
+}
+
+export interface AppointmentCreateDTO {
+    propertyId: string;
+    clientId: string;
+    agentId: string;
+    scheduledAt: string;
+    status: AppointmentStatus;
+    notes?: string;
+}
+
+export interface AppointmentUpdateDTO {
+    scheduledAt?: string;
+    status?: AppointmentStatus;
+    notes?: string;
+}
+
+export interface AppointmentsResponse {
+    count: number;
+    next: string | null;
+    previous: string | null;
+    results: Appointment[];
+}
+
+export interface AppointmentFilterParams {
+    limit: number;
+    offset: number;
+    search?: string;
+    status?: AppointmentStatus | "";
+}

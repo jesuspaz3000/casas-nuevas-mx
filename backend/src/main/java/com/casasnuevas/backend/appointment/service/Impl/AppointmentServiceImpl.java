@@ -2,9 +2,11 @@ package com.casasnuevas.backend.appointment.service.Impl;
 
 import com.casasnuevas.backend.appointment.dto.AppointmentCreateDTO;
 import com.casasnuevas.backend.appointment.dto.AppointmentDTO;
+import com.casasnuevas.backend.appointment.dto.AppointmentFilterDTO;
 import com.casasnuevas.backend.appointment.dto.AppointmentUpdateDTO;
 import com.casasnuevas.backend.appointment.model.Appointment;
 import com.casasnuevas.backend.appointment.repository.AppointmentRepository;
+import com.casasnuevas.backend.appointment.repository.AppointmentSpecification;
 import com.casasnuevas.backend.appointment.service.AppointmentService;
 import com.casasnuevas.backend.client.repository.ClientRepository;
 import com.casasnuevas.backend.common.exception.ResourceNotFoundException;
@@ -38,8 +40,18 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    public List<AppointmentDTO> findAll(AppointmentFilterDTO filter) {
+        return appointmentRepository.findAll(AppointmentSpecification.withFilters(filter)).stream().map(this::toDTO).toList();
+    }
+
+    @Override
     public Page<AppointmentDTO> findAll(Pageable pageable) {
         return appointmentRepository.findAll(pageable).map(this::toDTO);
+    }
+
+    @Override
+    public Page<AppointmentDTO> findAll(AppointmentFilterDTO filter, Pageable pageable) {
+        return appointmentRepository.findAll(AppointmentSpecification.withFilters(filter), pageable).map(this::toDTO);
     }
 
     @Override
