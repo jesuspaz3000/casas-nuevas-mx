@@ -22,6 +22,8 @@ spring:
     driver-class-name: org.postgresql.Driver
 
   jpa:
+    # Hibernate 7: si aún no hay conexión JDBC (p. ej. Postgres arrancando en Docker), sin dialecto explícito falla el bootstrap.
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     show-sql: true
