@@ -42,6 +42,8 @@ services:
       MAIL_USERNAME: veyito30000@gmail.com
       MAIL_PASSWORD: qrcelhttsykflffs
       SPRING_DATASOURCE_URL: jdbc:postgresql://172.30.0.10:5432/casas_nuevas_db?sslmode=disable
+      # docker-entrypoint.sh: misma IP hasta que el puerto acepte conexiones (evita race al iniciar).
+      POSTGRES_WAIT_HOST: 172.30.0.10
       JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     volumes:
       - ./backend/uploads:/app/uploads
