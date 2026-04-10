@@ -9,8 +9,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: litonaso
     volumes:
-      # Nombre fijo: al cambiar de nombre se crea volumen nuevo (init limpio si el anterior estaba corrupto).
-      - casas_postgres_data:/var/lib/postgresql/data
+      # postgres:18+ (imagen oficial): montar aquí (no en .../data); PG usa subcarpeta por versión mayor.
+      # https://github.com/docker-library/postgres/pull/1259
+      - casas_postgres_data:/var/lib/postgresql
     networks:
       - casas-network
     restart: always
@@ -72,7 +73,8 @@ services:
 
 volumes:
   casas_postgres_data:
-    name: casas_nuevas_mx_pgdata
+    # Nuevo nombre: el volumen anterior se montaba en .../data (incompatible con postgres:18+).
+    name: casas_nuevas_mx_pgdata_v2
 
 networks:
   casas-network:
