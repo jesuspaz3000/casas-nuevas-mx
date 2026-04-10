@@ -8,9 +8,8 @@ services:
       POSTGRES_DB: casas_nuevas_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: litonaso
-    # Evita fallos raros de init en VPS con poco /dev/shm por defecto (64 MiB).
-    shm_size: "256m"
     volumes:
+      # Nombre fijo: al cambiar de nombre se crea volumen nuevo (init limpio si el anterior estaba corrupto).
       - casas_postgres_data:/var/lib/postgresql/data
     networks:
       - casas-network
@@ -73,6 +72,7 @@ services:
 
 volumes:
   casas_postgres_data:
+    name: casas_nuevas_mx_pgdata
 
 networks:
   casas-network:

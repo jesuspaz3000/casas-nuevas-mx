@@ -8,7 +8,8 @@ MAX_TRIES="${POSTGRES_WAIT_MAX_TRIES:-90}"
 
 echo "Waiting for PostgreSQL at ${HOST}:${PORT} ..."
 n=0
-while ! nc -z "$HOST" "$PORT" 2>/dev/null; do
+# -4: forzar IPv4 (evita que "postgres" resuelva a IPv6 y nc falle aunque PG escuche solo en IPv4).
+while ! nc -4 -z -w 3 "$HOST" "$PORT" 2>/dev/null; do
   n=$((n + 1))
   if [ "$n" -gt "$MAX_TRIES" ]; then
     echo "Timeout: Postgres did not open ${PORT} after $((MAX_TRIES * 2))s (check docker logs casas-postgres)."
