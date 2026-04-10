@@ -3,7 +3,9 @@ package com.casasnuevas.backend.contract.controller;
 import com.casasnuevas.backend.common.util.PaginationUtils;
 import com.casasnuevas.backend.contract.dto.ContractCreateDTO;
 import com.casasnuevas.backend.contract.dto.ContractDTO;
+import com.casasnuevas.backend.contract.dto.ContractFilterDTO;
 import com.casasnuevas.backend.contract.dto.ContractUpdateDTO;
+import com.casasnuevas.backend.contract.model.Contract;
 import com.casasnuevas.backend.contract.service.ContractService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -30,19 +32,25 @@ public class ContractController {
 
     @GetMapping
     @Operation(summary = "Listar contratos",
-               description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`")
+               description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`. "
+                       + "Parámetros `search`, `status` y `contractType` aplican filtros.")
     public ResponseEntity<Object> findAll(
+            @Parameter(description = "Búsqueda por folio, título de propiedad o nombre de cliente")
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Filtro por estatus del contrato") @RequestParam(required = false) Contract.ContractStatus status,
+            @Parameter(description = "Filtro por tipo de contrato") @RequestParam(required = false) Contract.ContractType contractType,
             @Parameter(description = "Resultados por página") @RequestParam(required = false) Integer limit,
             @Parameter(description = "Desplazamiento")        @RequestParam(required = false) Integer offset,
             HttpServletRequest request
     ) {
+        ContractFilterDTO filter = new ContractFilterDTO(search, status, contractType);
         if (limit != null && offset != null) {
             PaginationUtils.validate(limit, offset);
-            var page = contractService.findAll(PaginationUtils.toPageable(limit, offset));
+            var page = contractService.findAll(filter, PaginationUtils.toPageable(limit, offset));
             return ResponseEntity.ok(PaginationUtils.build(page, limit, offset,
                     request.getRequestURL().toString(), request.getQueryString()));
         }
-        return ResponseEntity.ok(contractService.findAll());
+        return ResponseEntity.ok(contractService.findAll(filter));
     }
 
     @GetMapping("/agent/{agentId}")

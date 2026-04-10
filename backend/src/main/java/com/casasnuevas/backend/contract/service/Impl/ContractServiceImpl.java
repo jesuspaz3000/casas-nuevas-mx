@@ -4,9 +4,11 @@ import com.casasnuevas.backend.client.repository.ClientRepository;
 import com.casasnuevas.backend.common.exception.ResourceNotFoundException;
 import com.casasnuevas.backend.contract.dto.ContractCreateDTO;
 import com.casasnuevas.backend.contract.dto.ContractDTO;
+import com.casasnuevas.backend.contract.dto.ContractFilterDTO;
 import com.casasnuevas.backend.contract.dto.ContractUpdateDTO;
 import com.casasnuevas.backend.contract.model.Contract;
 import com.casasnuevas.backend.contract.repository.ContractRepository;
+import com.casasnuevas.backend.contract.repository.ContractSpecification;
 import com.casasnuevas.backend.contract.service.ContractService;
 import com.casasnuevas.backend.property.repository.PropertyRepository;
 import com.casasnuevas.backend.user.repository.UserRepository;
@@ -46,8 +48,20 @@ public class ContractServiceImpl implements ContractService {
     }
 
     @Override
+    public List<ContractDTO> findAll(ContractFilterDTO filter) {
+        return contractRepository.findAll(ContractSpecification.withFilters(filter))
+                .stream().map(this::toDTO).toList();
+    }
+
+    @Override
     public Page<ContractDTO> findAll(Pageable pageable) {
         return contractRepository.findAll(pageable).map(this::toDTO);
+    }
+
+    @Override
+    public Page<ContractDTO> findAll(ContractFilterDTO filter, Pageable pageable) {
+        return contractRepository.findAll(ContractSpecification.withFilters(filter), pageable)
+                .map(this::toDTO);
     }
 
     @Override
