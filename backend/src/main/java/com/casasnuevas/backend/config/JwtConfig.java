@@ -9,6 +9,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.Map;
@@ -83,7 +86,43 @@ public class JwtConfig {
     }
 
     private SecretKey getSigningKey() {
-        // JWT_SECRET es un string hexadecimal de 64 chars (256 bits)
-        return Keys.hmacShaKeyFor(HexFormat.of().parseHex(secret));
+        return Keys.hmacShaKeyFor(signingKeyMaterial(secret));
+    }
+
+    /**
+     * - Si JWT_SECRET es hex (solo 0-9a-f, longitud par, ≥64 caracteres = ≥32 bytes al decodificar): se usa como clave cruda.
+     * - En cualquier otro caso (p. ej. texto en docker-compose): SHA-256 del UTF-8 → 32 bytes (válido para HS256).
+     */
+    private static byte[] signingKeyMaterial(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new IllegalStateException("jwt.secret / JWT_SECRET no puede estar vacío");
+        }
+        String s = raw.trim();
+        if (looksLikeHexKey(s)) {
+            byte[] decoded = HexFormat.of().parseHex(s);
+            if (decoded.length < 32) {
+                throw new IllegalStateException(
+                        "JWT_SECRET en hex debe representar al menos 32 bytes (64 dígitos hex)");
+            }
+            return decoded;
+        }
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static boolean looksLikeHexKey(String s) {
+        if (s.length() < 64 || (s.length() % 2) != 0) {
+            return false;
+        }
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                return false;
+            }
+        }
+        return true;
     }
 }
