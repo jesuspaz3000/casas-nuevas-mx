@@ -7,6 +7,7 @@ import com.casasnuevas.backend.contract.dto.ContractFilterDTO;
 import com.casasnuevas.backend.contract.dto.ContractUpdateDTO;
 import com.casasnuevas.backend.contract.model.Contract;
 import com.casasnuevas.backend.contract.service.ContractService;
+import com.casasnuevas.backend.user.model.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -66,9 +68,26 @@ public class ContractController {
     }
 
     @PostMapping
-    @Operation(summary = "Crear contrato")
-    public ResponseEntity<ContractDTO> create(@Valid @RequestBody ContractCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(contractService.create(dto));
+    @Operation(summary = "Crear contrato",
+               description = "AGENT: el agente del contrato siempre es el usuario autenticado (no puede crear a nombre de otro).")
+    public ResponseEntity<ContractDTO> create(
+            @Valid @RequestBody ContractCreateDTO dto,
+            @AuthenticationPrincipal User user) {
+        ContractCreateDTO toSave = dto;
+        if (user.getRole() == User.Role.AGENT) {
+            toSave = new ContractCreateDTO(
+                    dto.propertyId(),
+                    dto.clientId(),
+                    user.getId(),
+                    dto.contractType(),
+                    dto.reservationPrice(),
+                    dto.salePrice(),
+                    dto.clientRfc(),
+                    dto.clientAddress(),
+                    dto.clientCfdiUse()
+            );
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(contractService.create(toSave));
     }
 
     @PatchMapping("/{id}")

@@ -7,6 +7,7 @@ import com.casasnuevas.backend.client.dto.ClientUpdateDTO;
 import com.casasnuevas.backend.client.model.Client;
 import com.casasnuevas.backend.client.service.ClientService;
 import com.casasnuevas.backend.common.util.PaginationUtils;
+import com.casasnuevas.backend.user.model.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,6 +16,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -67,14 +70,41 @@ public class ClientController {
     }
 
     @PostMapping
-    @Operation(summary = "Registrar cliente")
-    public ResponseEntity<ClientDTO> create(@Valid @RequestBody ClientCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(clientService.create(dto));
+    @Operation(summary = "Registrar cliente",
+               description = "AGENT: el cliente queda asignado al usuario autenticado (no puede asignar otro agente).")
+    public ResponseEntity<ClientDTO> create(
+            @Valid @RequestBody ClientCreateDTO dto,
+            @AuthenticationPrincipal User user) {
+        ClientCreateDTO toSave = dto;
+        if (user.getRole() == User.Role.AGENT) {
+            toSave = new ClientCreateDTO(
+                    dto.name(),
+                    dto.email(),
+                    dto.phone(),
+                    dto.budgetMin(),
+                    dto.budgetMax(),
+                    dto.interestedType(),
+                    dto.interestedCity(),
+                    dto.status(),
+                    dto.notes(),
+                    user.getId()
+            );
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(clientService.create(toSave));
     }
 
     @PatchMapping("/{id}")
-    @Operation(summary = "Actualizar cliente")
-    public ResponseEntity<ClientDTO> update(@PathVariable UUID id, @Valid @RequestBody ClientUpdateDTO dto) {
+    @Operation(summary = "Actualizar cliente",
+               description = "AGENT: no puede reasignar el cliente a otro agente (campo `agentId`).")
+    public ResponseEntity<ClientDTO> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody ClientUpdateDTO dto,
+            @AuthenticationPrincipal User user) {
+        if (user.getRole() == User.Role.AGENT
+                && dto.agentId() != null
+                && !dto.agentId().equals(user.getId())) {
+            throw new AccessDeniedException("Agent cannot reassign client");
+        }
         return ResponseEntity.ok(clientService.update(id, dto));
     }
 

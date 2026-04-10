@@ -6,7 +6,8 @@ import { Select } from "@/shared/components/Select";
 import { ClientsService } from "@/features/clients/services/clients.service";
 import { UsersService } from "@/features/users/services/users.service";
 import { ClientCreateDTO, ClientStatus } from "@/features/clients/types/clients.types";
-import { User } from "@/features/users/types/users.types";
+import type { User } from "@/features/users/types/users.types";
+import { useAuthStore } from "@/store/auth.store";
 import CloseIcon from "@mui/icons-material/Close";
 import PeopleIcon from "@mui/icons-material/People";
 
@@ -31,6 +32,8 @@ const TYPE_OPTIONS = [
 const inputClass = "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
 const labelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
 const sectionTitleClass = "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider";
+const readonlyClass =
+    "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
 type Form = { name: string; email: string; phone: string; budgetMin: string; budgetMax: string; interestedType: string; interestedCity: string; status: string; notes: string; agentId: string; };
 type Errors = Partial<Record<keyof Form, string>>;
@@ -38,13 +41,29 @@ type Errors = Partial<Record<keyof Form, string>>;
 const EMPTY: Form = { name: "", email: "", phone: "", budgetMin: "", budgetMax: "", interestedType: "", interestedCity: "", status: "LEAD", notes: "", agentId: "" };
 
 export function ClientCreateDialog({ open, onClose, onCreated }: Props) {
+    const authUser = useAuthStore((s) => s.user);
+    const isAgent = authUser?.role === "AGENT";
+
     const [form, setForm]               = useState<Form>(EMPTY);
     const [errors, setErrors]           = useState<Errors>({});
     const [loading, setLoading]         = useState(false);
     const [serverError, setServerError] = useState<string | null>(null);
     const [agents, setAgents]           = useState<User[]>([]);
 
-    useEffect(() => { if (open) UsersService.findAll().then(setAgents).catch(() => {}); }, [open]);
+    useEffect(() => {
+        if (!open) return;
+        if (isAgent) {
+            setAgents([]);
+            setForm({ ...EMPTY, agentId: authUser?.id ?? "" });
+            return;
+        }
+        UsersService.findAll()
+            .then((list) => {
+                setAgents(list.filter((u) => u.role === "AGENT" && u.isActive));
+                setForm(EMPTY);
+            })
+            .catch(() => setAgents([]));
+    }, [open, isAgent, authUser?.id]);
 
     if (!open) return null;
 
@@ -80,7 +99,7 @@ export function ClientCreateDialog({ open, onClose, onCreated }: Props) {
                 interestedType: form.interestedType ? form.interestedType as never : undefined,
                 interestedCity: form.interestedCity || undefined,
                 notes:          form.notes         || undefined,
-                agentId:        form.agentId       || undefined,
+                agentId:        isAgent ? authUser!.id : form.agentId || undefined,
             };
             await ClientsService.create(dto);
             setForm(EMPTY); setErrors({}); setServerError(null); onClose(); onCreated();
@@ -183,7 +202,13 @@ export function ClientCreateDialog({ open, onClose, onCreated }: Props) {
                             <p className={sectionTitleClass}>Agente</p>
                             <div>
                                 <label className={labelClass}>Agente asignado</label>
-                                <Select value={form.agentId} onChange={setSel("agentId")} options={agentOptions} />
+                                {isAgent ? (
+                                    <div className={readonlyClass}>
+                                        {authUser ? `${authUser.name} (${authUser.email})` : "—"}
+                                    </div>
+                                ) : (
+                                    <Select value={form.agentId} onChange={setSel("agentId")} options={agentOptions} />
+                                )}
                             </div>
                         </div>
                     </div>

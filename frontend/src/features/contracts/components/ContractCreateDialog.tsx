@@ -10,7 +10,7 @@ import { ClientsService } from "@/features/clients/services/clients.service";
 import { UsersService } from "@/features/users/services/users.service";
 import { Property } from "@/features/properties/types/properties.types";
 import { Client } from "@/features/clients/types/clients.types";
-import { User } from "@/features/users/types/users.types";
+import type { User as AgentUser } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
@@ -60,29 +60,45 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
     const [serverError, setServerError] = useState<string | null>(null);
     const [properties, setProperties]   = useState<Property[]>([]);
     const [clients, setClients]         = useState<Client[]>([]);
-    const [agents, setAgents]           = useState<User[]>([]);
+    const [agents, setAgents]           = useState<AgentUser[]>([]);
+    const [loadingCatalog, setLoadingCatalog] = useState(false);
+
+    const isAgent = authUser?.role === "AGENT";
 
     useEffect(() => {
         if (!open) return;
-        Promise.all([
-            PropertiesService.findAll(),
-            ClientsService.findAll(),
-            UsersService.findAll(),
-        ])
-            .then(([propsList, clientsList, usersList]) => {
-                setProperties(
-                    propsList.filter((p) => p.status === "AVAILABLE" || p.status === "RESERVED"),
-                );
-                setClients(clientsList);
-                const ag = usersList.filter((u) => u.role === "AGENT" && u.isActive);
-                setAgents(ag);
-                setForm({
-                    ...EMPTY,
-                    agentId: authUser?.role === "AGENT" ? authUser.id : "",
-                });
-            })
-            .catch(() => setServerError("No se pudieron cargar catálogos."));
-    }, [open, authUser?.id, authUser?.role]);
+        setServerError(null);
+        setLoadingCatalog(true);
+
+        const applyCatalog = (propsList: Property[], clientsList: Client[]) => {
+            setProperties(
+                propsList.filter((p) => p.status === "AVAILABLE" || p.status === "RESERVED"),
+            );
+            setClients(clientsList);
+        };
+
+        const load = isAgent
+            ? Promise.all([PropertiesService.findAll(), ClientsService.findAll()]).then(([propsList, clientsList]) => {
+                  applyCatalog(propsList, clientsList);
+                  setAgents([]);
+                  setForm({
+                      ...EMPTY,
+                      agentId: authUser?.id ?? "",
+                  });
+              })
+            : Promise.all([
+                  PropertiesService.findAll(),
+                  ClientsService.findAll(),
+                  UsersService.findAll(),
+              ]).then(([propsList, clientsList, usersList]) => {
+                  applyCatalog(propsList, clientsList);
+                  const ag = usersList.filter((u) => u.role === "AGENT" && u.isActive);
+                  setAgents(ag);
+                  setForm({ ...EMPTY, agentId: "" });
+              });
+
+        load.catch(() => setServerError("No se pudieron cargar catálogos.")).finally(() => setLoadingCatalog(false));
+    }, [open, isAgent, authUser?.id, authUser?.name, authUser?.email]);
 
     if (!open) return null;
 
@@ -100,7 +116,8 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
         const errs: Errors = {};
         if (!form.propertyId) errs.propertyId = "Selecciona una propiedad";
         if (!form.clientId) errs.clientId = "Selecciona un cliente";
-        if (!form.agentId) errs.agentId = "Selecciona un agente";
+        if (!isAgent && !form.agentId) errs.agentId = "Selecciona un agente";
+        if (isAgent && !authUser?.id) errs.agentId = "Sesión inválida";
         if (!form.reservationPrice.trim()) errs.reservationPrice = "El monto de reserva es requerido";
         else if (isNaN(Number(form.reservationPrice)) || Number(form.reservationPrice) < 0) {
             errs.reservationPrice = "Monto inválido";
@@ -120,7 +137,7 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
             const dto: ContractCreateDTO = {
                 propertyId: form.propertyId,
                 clientId: form.clientId,
-                agentId: form.agentId,
+                agentId: isAgent ? authUser!.id : form.agentId,
                 contractType: form.contractType,
                 reservationPrice: Number(form.reservationPrice),
                 salePrice: form.salePrice.trim() ? Number(form.salePrice) : undefined,
@@ -172,6 +189,8 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
         ...clients.map((c) => ({ value: c.id, label: c.name })),
     ];
     const agentOptions = agents.map((a) => ({ value: a.id, label: `${a.name} (${a.email})` }));
+    const readonlyClass =
+        "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -200,17 +219,38 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
                             <div className="mt-3 flex flex-col gap-4">
                                 <div>
                                     <label className={labelClass}>Propiedad</label>
-                                    <Select value={form.propertyId} onChange={(v) => setSel("propertyId")(v)} options={propOptions} className="w-full" />
+                                    {loadingCatalog ? (
+                                        <div className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                                    ) : (
+                                        <Select value={form.propertyId} onChange={(v) => setSel("propertyId")(v)} options={propOptions} className="w-full" />
+                                    )}
                                     {errors.propertyId && <p className="text-xs text-red-500 mt-1">{errors.propertyId}</p>}
                                 </div>
                                 <div>
                                     <label className={labelClass}>Cliente</label>
-                                    <Select value={form.clientId} onChange={(v) => setSel("clientId")(v)} options={clientOptions} className="w-full" />
+                                    {loadingCatalog ? (
+                                        <div className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                                    ) : (
+                                        <Select value={form.clientId} onChange={(v) => setSel("clientId")(v)} options={clientOptions} className="w-full" />
+                                    )}
                                     {errors.clientId && <p className="text-xs text-red-500 mt-1">{errors.clientId}</p>}
                                 </div>
                                 <div>
                                     <label className={labelClass}>Agente</label>
-                                    <Select value={form.agentId} onChange={(v) => setSel("agentId")(v)} options={[{ value: "", label: "Seleccionar agente" }, ...agentOptions]} className="w-full" />
+                                    {isAgent ? (
+                                        <div className={readonlyClass}>
+                                            {authUser ? `${authUser.name} (${authUser.email})` : "—"}
+                                        </div>
+                                    ) : loadingCatalog ? (
+                                        <div className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />
+                                    ) : (
+                                        <Select
+                                            value={form.agentId}
+                                            onChange={(v) => setSel("agentId")(v)}
+                                            options={[{ value: "", label: "Seleccionar agente" }, ...agentOptions]}
+                                            className="w-full"
+                                        />
+                                    )}
                                     {errors.agentId && <p className="text-xs text-red-500 mt-1">{errors.agentId}</p>}
                                 </div>
                                 <div>

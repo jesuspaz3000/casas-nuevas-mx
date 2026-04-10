@@ -10,7 +10,7 @@ import { ClientsService } from "@/features/clients/services/clients.service";
 import { UsersService } from "@/features/users/services/users.service";
 import { Property } from "@/features/properties/types/properties.types";
 import { Client } from "@/features/clients/types/clients.types";
-import { User } from "@/features/users/types/users.types";
+import type { User } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
 import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
@@ -42,6 +42,8 @@ const DURATION_OPTIONS = [
 const inputClass = "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
 const labelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
 const sectionTitleClass = "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider";
+const readonlyClass =
+    "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
 type Form = {
     propertyId: string;
@@ -72,6 +74,23 @@ function clampDuration(m: number): number {
     return Math.min(480, Math.max(15, Math.round(m / 15) * 15));
 }
 
+/** Solo en cliente con modal abierto; resume fin = inicio + duración. */
+function formatEndFromStartLocal(startLocal: string, durationMin: number): string | null {
+    if (!startLocal.trim()) return null;
+    const start = new Date(startLocal);
+    if (Number.isNaN(start.getTime())) return null;
+    const dur = Number(durationMin);
+    if (!Number.isFinite(dur) || dur <= 0) return null;
+    const end = new Date(start.getTime() + dur * 60_000);
+    return end.toLocaleString("es-MX", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 export function AppointmentCreateDialog({
     open,
     onClose,
@@ -81,6 +100,8 @@ export function AppointmentCreateDialog({
     initialDurationMinutes,
 }: Props) {
     const authUser = useAuthStore((s) => s.user);
+    const isAgent = authUser?.role === "AGENT";
+
     const [form, setForm] = useState<Form>(EMPTY);
     const [errors, setErrors] = useState<Errors>({});
     const [loading, setLoading] = useState(false);
@@ -93,15 +114,19 @@ export function AppointmentCreateDialog({
     useEffect(() => {
         if (!open) return;
         setLoadingData(true);
-        Promise.all([PropertiesService.findAll(), ClientsService.findAll(), UsersService.findAll()])
-            .then(([props, cls, usrs]) => {
-                setProperties(props);
-                setClients(cls);
-                setAgents(usrs.filter((u) => u.role === "AGENT" && u.isActive));
-            })
-            .catch(() => {})
-            .finally(() => setLoadingData(false));
-    }, [open]);
+        const load = isAgent
+            ? Promise.all([PropertiesService.findAll(), ClientsService.findAll()]).then(([props, cls]) => {
+                  setProperties(props);
+                  setClients(cls);
+                  setAgents([]);
+              })
+            : Promise.all([PropertiesService.findAll(), ClientsService.findAll(), UsersService.findAll()]).then(([props, cls, usrs]) => {
+                  setProperties(props);
+                  setClients(cls);
+                  setAgents(usrs.filter((u) => u.role === "AGENT" && u.isActive));
+              });
+        load.catch(() => {}).finally(() => setLoadingData(false));
+    }, [open, isAgent]);
 
     useEffect(() => {
         if (!open) return;
@@ -131,6 +156,13 @@ export function AppointmentCreateDialog({
         return DURATION_OPTIONS;
     }, [form.durationMinutes]);
 
+    const endPreview = useMemo(
+        () => formatEndFromStartLocal(form.scheduledAt, Number(form.durationMinutes) || 0),
+        [form.scheduledAt, form.durationMinutes],
+    );
+
+    const cameFromCalendarGrid = Boolean(initialScheduledAt);
+
     if (!open) return null;
 
     const setSel = (field: keyof Form) => (v: string) => {
@@ -148,7 +180,8 @@ export function AppointmentCreateDialog({
         const errs: Errors = {};
         if (!form.propertyId) errs.propertyId = "Selecciona una propiedad";
         if (!form.clientId) errs.clientId = "Selecciona un cliente";
-        if (!form.agentId) errs.agentId = "Selecciona un agente";
+        if (!isAgent && !form.agentId) errs.agentId = "Selecciona un agente";
+        if (isAgent && !authUser?.id) errs.agentId = "Sesión inválida";
         if (!form.scheduledAt) errs.scheduledAt = "La fecha y hora son requeridas";
         setErrors(errs);
         return Object.keys(errs).length === 0;
@@ -162,7 +195,7 @@ export function AppointmentCreateDialog({
             const dto: AppointmentCreateDTO = {
                 propertyId: form.propertyId,
                 clientId: form.clientId,
-                agentId: form.agentId,
+                agentId: isAgent ? authUser!.id : form.agentId,
                 scheduledAt: new Date(form.scheduledAt).toISOString(),
                 durationMinutes: Number(form.durationMinutes) || 60,
                 status: form.status as AppointmentStatus,
@@ -244,7 +277,15 @@ export function AppointmentCreateDialog({
                                 </div>
                                 <div>
                                     <label className={labelClass}>Agente</label>
-                                    {loadingData ? <Skel /> : <Select value={form.agentId} onChange={setSel("agentId")} options={agentOptions} />}
+                                    {loadingData ? (
+                                        <Skel />
+                                    ) : isAgent ? (
+                                        <div className={readonlyClass}>
+                                            {authUser ? `${authUser.name} (${authUser.email})` : "—"}
+                                        </div>
+                                    ) : (
+                                        <Select value={form.agentId} onChange={setSel("agentId")} options={agentOptions} />
+                                    )}
                                     {errors.agentId && <p className="mt-1 text-xs text-red-500">{errors.agentId}</p>}
                                 </div>
                             </div>
@@ -252,16 +293,39 @@ export function AppointmentCreateDialog({
 
                         <div className="flex flex-col gap-3">
                             <p className={sectionTitleClass}>Programación</p>
+                            {!cameFromCalendarGrid && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 px-3 py-2.5">
+                                    En la vista <span className="font-medium text-gray-800 dark:text-gray-200">Calendario</span>, selecciona celdas en la
+                                    cuadrícula y usa <span className="font-medium text-gray-800 dark:text-gray-200">Crear cita con este horario</span> para
+                                    fijar inicio y duración alineados a los bloques. Aquí puedes ajustar inicio y duración manualmente; el fin se calcula
+                                    abajo.
+                                </p>
+                            )}
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className={labelClass}>Inicio</label>
-                                    <input type="datetime-local" value={form.scheduledAt} onChange={set("scheduledAt")} className={inputClass} />
+                                    <input
+                                        type="datetime-local"
+                                        step={900}
+                                        value={form.scheduledAt}
+                                        onChange={set("scheduledAt")}
+                                        className={inputClass}
+                                    />
                                     {errors.scheduledAt && <p className="mt-1 text-xs text-red-500">{errors.scheduledAt}</p>}
                                 </div>
                                 <div>
                                     <label className={labelClass}>Duración</label>
                                     <Select value={form.durationMinutes} onChange={setSel("durationMinutes")} options={durationSelectOptions} />
                                 </div>
+                            </div>
+                            <div>
+                                <label className={labelClass}>Fin estimado</label>
+                                <div className={readonlyClass}>
+                                    {endPreview ?? "Elige fecha y hora de inicio y una duración."}
+                                </div>
+                                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                    La cita termina al cabo de la duración; no hace falta escribir el fin.
+                                </p>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>

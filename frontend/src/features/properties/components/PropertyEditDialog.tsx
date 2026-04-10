@@ -6,7 +6,8 @@ import { Select } from "@/shared/components/Select";
 import { PropertiesService } from "@/features/properties/services/properties.service";
 import { UsersService } from "@/features/users/services/users.service";
 import { Property, PropertyType, PropertyStatus } from "@/features/properties/types/properties.types";
-import { User } from "@/features/users/types/users.types";
+import type { User } from "@/features/users/types/users.types";
+import { useAuthStore } from "@/store/auth.store";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 
@@ -35,6 +36,8 @@ const inputClass =
 const labelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
 const sectionClass = "flex flex-col gap-3";
 const sectionTitleClass = "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider";
+const readonlyClass =
+    "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
 type FormState = {
     title: string; description: string;
@@ -52,6 +55,9 @@ function FieldSkeleton() {
 }
 
 export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props) {
+    const authUser = useAuthStore((s) => s.user);
+    const isAgent = authUser?.role === "AGENT";
+
     const [form, setForm]               = useState<FormState>({ title: "", description: "", type: "HOUSE", status: "AVAILABLE", price: "", street: "", neighborhood: "", city: "", state: "", zipCode: "", bedrooms: "", bathrooms: "", areaM2: "", agentId: "" });
     const [fetched, setFetched]         = useState<Property | null>(null);
     const [isFetching, setIsFetching]   = useState(false);
@@ -69,33 +75,44 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
         setServerError(null);
         setFetched(null);
 
-        Promise.all([
-            PropertiesService.findById(property.id),
-            UsersService.findAll(),
-        ])
-            .then(([data, users]) => {
-                setFetched(data);
-                setAgents(users);
-                setForm({
-                    title:        data.title        ?? "",
-                    description:  data.description  ?? "",
-                    type:         data.type,
-                    status:       data.status,
-                    price:        String(data.price ?? ""),
-                    street:       data.street        ?? "",
-                    neighborhood: data.neighborhood  ?? "",
-                    city:         data.city          ?? "",
-                    state:        data.state         ?? "",
-                    zipCode:      data.zipCode       ?? "",
-                    bedrooms:     data.bedrooms  != null ? String(data.bedrooms)  : "",
-                    bathrooms:    data.bathrooms != null ? String(data.bathrooms) : "",
-                    areaM2:       data.areaM2    != null ? String(data.areaM2)    : "",
-                    agentId:      data.agentId   ?? "",
-                });
-            })
-            .catch(() => setFetchError("No se pudieron cargar los datos de la propiedad."))
-            .finally(() => setIsFetching(false));
-    }, [open, property]);
+        const applyProperty = (data: Property, users: User[]) => {
+            setFetched(data);
+            setAgents(users);
+            setForm({
+                title:        data.title ?? "",
+                description:  data.description ?? "",
+                type:         data.type,
+                status:       data.status,
+                price:        String(data.price ?? ""),
+                street:       data.street ?? "",
+                neighborhood: data.neighborhood ?? "",
+                city:         data.city ?? "",
+                state:        data.state ?? "",
+                zipCode:      data.zipCode ?? "",
+                bedrooms:     data.bedrooms != null ? String(data.bedrooms) : "",
+                bathrooms:    data.bathrooms != null ? String(data.bathrooms) : "",
+                areaM2:       data.areaM2 != null ? String(data.areaM2) : "",
+                agentId:      data.agentId ?? "",
+            });
+        };
+
+        if (isAgent) {
+            PropertiesService.findById(property.id)
+                .then((data) => applyProperty(data, []))
+                .catch(() => setFetchError("No se pudieron cargar los datos de la propiedad."))
+                .finally(() => setIsFetching(false));
+        } else {
+            Promise.all([PropertiesService.findById(property.id), UsersService.findAll()])
+                .then(([data, users]) =>
+                    applyProperty(
+                        data,
+                        users.filter((u) => u.role === "AGENT" && u.isActive),
+                    ),
+                )
+                .catch(() => setFetchError("No se pudieron cargar los datos de la propiedad."))
+                .finally(() => setIsFetching(false));
+        }
+    }, [open, property, isAgent]);
 
     if (!open || !property) return null;
 
@@ -138,7 +155,11 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
                 bedrooms:     form.bedrooms  ? Number(form.bedrooms)  : undefined,
                 bathrooms:    form.bathrooms ? Number(form.bathrooms) : undefined,
                 areaM2:       form.areaM2    ? Number(form.areaM2)    : undefined,
-                agentId:      form.agentId   !== (fetched.agentId ?? "")     ? form.agentId      || undefined : undefined,
+                agentId:      isAgent
+                    ? undefined
+                    : form.agentId !== (fetched.agentId ?? "")
+                      ? form.agentId || undefined
+                      : undefined,
             });
             handleClose();
             onUpdated();
@@ -290,7 +311,16 @@ export function PropertyEditDialog({ open, property, onClose, onUpdated }: Props
                             <p className={sectionTitleClass}>Agente</p>
                             <div>
                                 <label className={labelClass}>Agente asignado</label>
-                                {isFetching ? <FieldSkeleton /> : <Select value={form.agentId} onChange={setSelect("agentId")} options={agentOptions} />}
+                                {isFetching ? (
+                                    <FieldSkeleton />
+                                ) : isAgent ? (
+                                    <div className={readonlyClass}>
+                                        {fetched?.agentName ??
+                                            (authUser ? `${authUser.name} (${authUser.email})` : "—")}
+                                    </div>
+                                ) : (
+                                    <Select value={form.agentId} onChange={setSelect("agentId")} options={agentOptions} />
+                                )}
                             </div>
                         </div>
                     </div>

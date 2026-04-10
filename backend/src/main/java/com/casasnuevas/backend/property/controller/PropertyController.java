@@ -5,6 +5,7 @@ import com.casasnuevas.backend.common.util.PaginationUtils;
 import com.casasnuevas.backend.property.dto.*;
 import com.casasnuevas.backend.property.model.Property;
 import com.casasnuevas.backend.property.service.PropertyService;
+import com.casasnuevas.backend.user.model.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -68,14 +71,46 @@ public class PropertyController {
     }
 
     @PostMapping
-    @Operation(summary = "Crear propiedad")
-    public ResponseEntity<PropertyDTO> create(@Valid @RequestBody PropertyCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(propertyService.create(dto));
+    @Operation(summary = "Crear propiedad",
+               description = "AGENT: la propiedad queda asignada al usuario autenticado (no puede asignar otro agente).")
+    public ResponseEntity<PropertyDTO> create(
+            @Valid @RequestBody PropertyCreateDTO dto,
+            @AuthenticationPrincipal User user) {
+        PropertyCreateDTO toSave = dto;
+        if (user.getRole() == User.Role.AGENT) {
+            toSave = new PropertyCreateDTO(
+                    dto.title(),
+                    dto.description(),
+                    dto.type(),
+                    dto.status(),
+                    dto.price(),
+                    dto.currency(),
+                    dto.street(),
+                    dto.neighborhood(),
+                    dto.city(),
+                    dto.state(),
+                    dto.zipCode(),
+                    dto.bedrooms(),
+                    dto.bathrooms(),
+                    dto.areaM2(),
+                    user.getId()
+            );
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(propertyService.create(toSave));
     }
 
     @PatchMapping("/{id}")
-    @Operation(summary = "Actualizar propiedad")
-    public ResponseEntity<PropertyDTO> update(@PathVariable UUID id, @Valid @RequestBody PropertyUpdateDTO dto) {
+    @Operation(summary = "Actualizar propiedad",
+               description = "AGENT: no puede reasignar la propiedad a otro agente (campo `agentId`).")
+    public ResponseEntity<PropertyDTO> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody PropertyUpdateDTO dto,
+            @AuthenticationPrincipal User user) {
+        if (user.getRole() == User.Role.AGENT
+                && dto.agentId() != null
+                && !dto.agentId().equals(user.getId())) {
+            throw new AccessDeniedException("Agent cannot reassign property");
+        }
         return ResponseEntity.ok(propertyService.update(id, dto));
     }
 

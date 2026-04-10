@@ -6,7 +6,8 @@ import { Select } from "@/shared/components/Select";
 import { PropertiesService } from "@/features/properties/services/properties.service";
 import { UsersService } from "@/features/users/services/users.service";
 import { PropertyCreateDTO, PropertyType, PropertyStatus } from "@/features/properties/types/properties.types";
-import { User } from "@/features/users/types/users.types";
+import type { User } from "@/features/users/types/users.types";
+import { useAuthStore } from "@/store/auth.store";
 import CloseIcon from "@mui/icons-material/Close";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
 
@@ -34,6 +35,8 @@ const inputClass =
 const labelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
 const sectionClass = "flex flex-col gap-3";
 const sectionTitleClass = "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider";
+const readonlyClass =
+    "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
 type FormState = {
     title: string; description: string;
@@ -53,6 +56,9 @@ const EMPTY: FormState = {
 };
 
 export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
+    const authUser = useAuthStore((s) => s.user);
+    const isAgent = authUser?.role === "AGENT";
+
     const [form, setForm]               = useState<FormState>(EMPTY);
     const [errors, setErrors]           = useState<FormErrors>({});
     const [loading, setLoading]         = useState(false);
@@ -61,8 +67,18 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
 
     useEffect(() => {
         if (!open) return;
-        UsersService.findAll().then(setAgents).catch(() => {});
-    }, [open]);
+        if (isAgent) {
+            setAgents([]);
+            setForm({ ...EMPTY, agentId: authUser?.id ?? "" });
+            return;
+        }
+        UsersService.findAll()
+            .then((list) => {
+                setAgents(list.filter((u) => u.role === "AGENT" && u.isActive));
+                setForm(EMPTY);
+            })
+            .catch(() => setAgents([]));
+    }, [open, isAgent, authUser?.id]);
 
     if (!open) return null;
 
@@ -105,7 +121,7 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                 bedrooms:     form.bedrooms  ? Number(form.bedrooms)  : undefined,
                 bathrooms:    form.bathrooms ? Number(form.bathrooms) : undefined,
                 areaM2:       form.areaM2    ? Number(form.areaM2)    : undefined,
-                agentId:      form.agentId   || undefined,
+                agentId:      isAgent ? authUser!.id : form.agentId || undefined,
             };
             await PropertiesService.create(dto);
             handleClose();
@@ -245,7 +261,13 @@ export function PropertyCreateDialog({ open, onClose, onCreated }: Props) {
                             <p className={sectionTitleClass}>Agente</p>
                             <div>
                                 <label className={labelClass}>Agente asignado</label>
-                                <Select value={form.agentId} onChange={setSelect("agentId")} options={agentOptions} />
+                                {isAgent ? (
+                                    <div className={readonlyClass}>
+                                        {authUser ? `${authUser.name} (${authUser.email})` : "—"}
+                                    </div>
+                                ) : (
+                                    <Select value={form.agentId} onChange={setSelect("agentId")} options={agentOptions} />
+                                )}
                             </div>
                         </div>
                     </div>

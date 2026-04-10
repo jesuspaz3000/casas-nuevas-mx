@@ -7,6 +7,7 @@ import com.casasnuevas.backend.appointment.dto.AppointmentUpdateDTO;
 import com.casasnuevas.backend.appointment.model.Appointment;
 import com.casasnuevas.backend.appointment.service.AppointmentService;
 import com.casasnuevas.backend.common.util.PaginationUtils;
+import com.casasnuevas.backend.user.model.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -80,9 +82,24 @@ public class AppointmentController {
     }
 
     @PostMapping
-    @Operation(summary = "Agendar cita")
-    public ResponseEntity<AppointmentDTO> create(@Valid @RequestBody AppointmentCreateDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(appointmentService.create(dto));
+    @Operation(summary = "Agendar cita",
+               description = "AGENT: la cita queda asignada al usuario autenticado (no puede agendar para otro agente).")
+    public ResponseEntity<AppointmentDTO> create(
+            @Valid @RequestBody AppointmentCreateDTO dto,
+            @AuthenticationPrincipal User user) {
+        AppointmentCreateDTO toSave = dto;
+        if (user.getRole() == User.Role.AGENT) {
+            toSave = new AppointmentCreateDTO(
+                    dto.propertyId(),
+                    dto.clientId(),
+                    user.getId(),
+                    dto.scheduledAt(),
+                    dto.durationMinutes(),
+                    dto.status(),
+                    dto.notes()
+            );
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(appointmentService.create(toSave));
     }
 
     @PatchMapping("/{id}")

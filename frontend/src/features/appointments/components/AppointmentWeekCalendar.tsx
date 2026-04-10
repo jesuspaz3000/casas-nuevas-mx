@@ -20,6 +20,22 @@ function pad(n: number) {
     return String(n).padStart(2, "0");
 }
 
+const MX_MONTHS_LONG = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
+/** Misma salida en servidor y cliente (sin depender de ICU/locale del runtime). */
+function formatWeekTitleEs(weekStart: Date): string {
+    return `${weekStart.getDate()} de ${MX_MONTHS_LONG[weekStart.getMonth()]} de ${weekStart.getFullYear()}`;
+}
+
+function formatTimeHm(d: Date): string {
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+const CALENDAR_HELP_TEXT = `Horario ${DAY_START_H}:00–${DAY_END_H}:00 · Cada celda es ${SLOT_MIN} min. Clic en celdas vacías para seleccionar una o varias (mismo día); luego usa "Crear cita" o "Descartar". Clic en un bloque de cita para editar.`;
+
 /** Lunes de la semana de `d` (00:00 local). */
 export function startOfWeekMonday(d: Date): Date {
     const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -226,7 +242,7 @@ export function AppointmentWeekCalendar({
                     </button>
                 </div>
                 <p className="text-sm font-medium text-gray-800 dark:text-white">
-                    Semana del {weekStart.toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" })}
+                    Semana del {formatWeekTitleEs(weekStart)}
                 </p>
                 <div className="w-full sm:w-auto sm:ml-auto sm:min-w-[280px] flex items-center gap-2">
                     <PersonIcon className="text-gray-400 shrink-0" sx={{ fontSize: 20 }} />
@@ -240,9 +256,7 @@ export function AppointmentWeekCalendar({
                 </div>
             </div>
 
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-                Horario {DAY_START_H}:00–{DAY_END_H}:00 · Cada celda es {SLOT_MIN} min. Clic en celdas vacías para seleccionar una o varias (mismo día); luego usa &quot;Crear cita&quot; o &quot;Descartar&quot;. Clic en un bloque de cita para editar.
-            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{CALENDAR_HELP_TEXT}</p>
 
             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 bg-gray-50/90 dark:bg-gray-800/40 px-4 py-3">
                 <p className="text-sm text-gray-700 dark:text-gray-200">
@@ -379,11 +393,7 @@ export function AppointmentWeekCalendar({
                                                 }}
                                             >
                                                 <span className="block text-[10px] font-semibold leading-tight truncate">
-                                                    {new Date(a.scheduledAt).toLocaleTimeString("es-MX", {
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })}{" "}
-                                                    · {dur} min
+                                                    {formatTimeHm(new Date(a.scheduledAt))} · {dur} min
                                                 </span>
                                                 <span className="block text-[9px] opacity-95 truncate leading-tight">{a.clientName}</span>
                                                 <span className="block text-[9px] opacity-90 truncate leading-tight">{a.propertyTitle}</span>

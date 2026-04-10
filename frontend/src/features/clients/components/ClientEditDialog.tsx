@@ -6,7 +6,8 @@ import { Select } from "@/shared/components/Select";
 import { ClientsService } from "@/features/clients/services/clients.service";
 import { UsersService } from "@/features/users/services/users.service";
 import { Client, ClientStatus } from "@/features/clients/types/clients.types";
-import { User } from "@/features/users/types/users.types";
+import type { User } from "@/features/users/types/users.types";
+import { useAuthStore } from "@/store/auth.store";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 
@@ -31,6 +32,8 @@ const TYPE_OPTIONS = [
 const inputClass = "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
 const labelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
 const sectionTitleClass = "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider";
+const readonlyClass =
+    "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-200";
 
 type Form = { name: string; email: string; phone: string; budgetMin: string; budgetMax: string; interestedType: string; interestedCity: string; status: string; notes: string; agentId: string; };
 type Errors = Partial<Record<keyof Form, string>>;
@@ -38,6 +41,9 @@ type Errors = Partial<Record<keyof Form, string>>;
 function Skel() { return <div className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />; }
 
 export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
+    const authUser = useAuthStore((s) => s.user);
+    const isAgent = authUser?.role === "AGENT";
+
     const [form, setForm]               = useState<Form>({ name: "", email: "", phone: "", budgetMin: "", budgetMax: "", interestedType: "", interestedCity: "", status: "LEAD", notes: "", agentId: "" });
     const [fetched, setFetched]         = useState<Client | null>(null);
     const [isFetching, setIsFetching]   = useState(false);
@@ -49,26 +55,46 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
 
     useEffect(() => {
         if (!open || !client) return;
-        setIsFetching(true); setFetchError(null); setErrors({}); setServerError(null); setFetched(null);
-        Promise.all([ClientsService.findById(client.id), UsersService.findAll()])
-            .then(([data, users]) => {
-                setFetched(data); setAgents(users);
-                setForm({
-                    name:          data.name            ?? "",
-                    email:         data.email           ?? "",
-                    phone:         data.phone           ?? "",
-                    budgetMin:     data.budgetMin  != null ? String(data.budgetMin)  : "",
-                    budgetMax:     data.budgetMax  != null ? String(data.budgetMax)  : "",
-                    interestedType: data.interestedType ?? "",
-                    interestedCity: data.interestedCity ?? "",
-                    status:        data.status,
-                    notes:         data.notes           ?? "",
-                    agentId:       data.agentId         ?? "",
-                });
-            })
-            .catch(() => setFetchError("No se pudieron cargar los datos del cliente."))
-            .finally(() => setIsFetching(false));
-    }, [open, client]);
+        setIsFetching(true);
+        setFetchError(null);
+        setErrors({});
+        setServerError(null);
+        setFetched(null);
+
+        const applyClient = (data: Client, users: User[]) => {
+            setFetched(data);
+            setAgents(users);
+            setForm({
+                name:           data.name ?? "",
+                email:          data.email ?? "",
+                phone:          data.phone ?? "",
+                budgetMin:      data.budgetMin != null ? String(data.budgetMin) : "",
+                budgetMax:      data.budgetMax != null ? String(data.budgetMax) : "",
+                interestedType: data.interestedType ?? "",
+                interestedCity: data.interestedCity ?? "",
+                status:         data.status,
+                notes:          data.notes ?? "",
+                agentId:        data.agentId ?? "",
+            });
+        };
+
+        if (isAgent) {
+            ClientsService.findById(client.id)
+                .then((data) => applyClient(data, []))
+                .catch(() => setFetchError("No se pudieron cargar los datos del cliente."))
+                .finally(() => setIsFetching(false));
+        } else {
+            Promise.all([ClientsService.findById(client.id), UsersService.findAll()])
+                .then(([data, users]) =>
+                    applyClient(
+                        data,
+                        users.filter((u) => u.role === "AGENT" && u.isActive),
+                    ),
+                )
+                .catch(() => setFetchError("No se pudieron cargar los datos del cliente."))
+                .finally(() => setIsFetching(false));
+        }
+    }, [open, client, isAgent]);
 
     if (!open || !client) return null;
 
@@ -102,7 +128,7 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
                 interestedCity: form.interestedCity  || undefined,
                 status:        form.status as ClientStatus,
                 notes:         form.notes            || undefined,
-                agentId:       form.agentId          || undefined,
+                agentId:       isAgent ? undefined : form.agentId || undefined,
             });
             onClose(); onUpdated();
         } catch {
@@ -203,7 +229,16 @@ export function ClientEditDialog({ open, client, onClose, onUpdated }: Props) {
                             <p className={sectionTitleClass}>Agente</p>
                             <div>
                                 <label className={labelClass}>Agente asignado</label>
-                                {isFetching ? <Skel /> : <Select value={form.agentId} onChange={setSel("agentId")} options={agentOptions} />}
+                                {isFetching ? (
+                                    <Skel />
+                                ) : isAgent ? (
+                                    <div className={readonlyClass}>
+                                        {fetched?.agentName ??
+                                            (authUser ? `${authUser.name} (${authUser.email})` : "—")}
+                                    </div>
+                                ) : (
+                                    <Select value={form.agentId} onChange={setSel("agentId")} options={agentOptions} />
+                                )}
                             </div>
                         </div>
                     </div>

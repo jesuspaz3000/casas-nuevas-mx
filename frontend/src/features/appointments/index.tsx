@@ -11,7 +11,7 @@ import { AppointmentEditDialog } from "@/features/appointments/components/Appoin
 import { AppointmentDeleteDialog } from "@/features/appointments/components/AppointmentDeleteDialog";
 import { AppointmentWeekCalendar, startOfWeekMonday } from "@/features/appointments/components/AppointmentWeekCalendar";
 import { UsersService } from "@/features/users/services/users.service";
-import { User } from "@/features/users/types/users.types";
+import type { User } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
@@ -68,7 +68,9 @@ export default function Appointments() {
     } = useAppointments();
 
     const [view, setView] = useState<"calendar" | "list">("calendar");
-    const [calendarWeek, setCalendarWeek] = useState(() => startOfWeekMonday(new Date()));
+    /** Evita SSR con `new Date()` / auth distinto al cliente (mismatch de hidratación). */
+    const [calendarReady, setCalendarReady] = useState(false);
+    const [calendarWeek, setCalendarWeek] = useState<Date | null>(null);
     const [calendarAgentId, setCalendarAgentId] = useState("");
     const [agentsForCalendar, setAgentsForCalendar] = useState<User[]>([]);
     const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
@@ -86,10 +88,29 @@ export default function Appointments() {
     const bumpCalendar = () => setCalendarRefreshToken((n) => n + 1);
 
     useEffect(() => {
+        setCalendarWeek(startOfWeekMonday(new Date()));
+        setCalendarReady(true);
+    }, []);
+
+    useEffect(() => {
+        if (!authUser) return;
+        if (authUser.role === "AGENT") {
+            setAgentsForCalendar([
+                {
+                    id: authUser.id,
+                    name: authUser.name,
+                    email: authUser.email,
+                    role: "AGENT",
+                    isActive: true,
+                    createdAt: "",
+                },
+            ]);
+            return;
+        }
         UsersService.findAll()
             .then((all) => setAgentsForCalendar(all.filter((u) => u.role === "AGENT" && u.isActive)))
             .catch(() => {});
-    }, []);
+    }, [authUser]);
 
     useEffect(() => {
         if (authUser?.role === "AGENT" && authUser.id) {
@@ -247,26 +268,35 @@ export default function Appointments() {
                     <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{error}</div>
                 )}
 
-                {view === "calendar" && (
-                    <AppointmentWeekCalendar
-                        weekStart={calendarWeek}
-                        onWeekChange={setCalendarWeek}
-                        selectedAgentId={calendarAgentId}
-                        onAgentChange={setCalendarAgentId}
-                        agentOptions={agentsForCalendar}
-                        isAgentRole={authUser?.role === "AGENT"}
-                        refreshToken={calendarRefreshToken}
-                        onConfirmSelection={({ scheduledAt, durationMinutes }) => {
-                            setCreatePrefill({
-                                agentId: calendarAgentId || undefined,
-                                scheduledAt,
-                                durationMinutes,
-                            });
-                            setCreateOpen(true);
-                        }}
-                        onAppointmentClick={(a) => setEditAppointment(a)}
-                    />
-                )}
+                {view === "calendar" &&
+                    (calendarReady && calendarWeek ? (
+                        <AppointmentWeekCalendar
+                            weekStart={calendarWeek}
+                            onWeekChange={setCalendarWeek}
+                            selectedAgentId={calendarAgentId}
+                            onAgentChange={setCalendarAgentId}
+                            agentOptions={agentsForCalendar}
+                            isAgentRole={authUser?.role === "AGENT"}
+                            refreshToken={calendarRefreshToken}
+                            onConfirmSelection={({ scheduledAt, durationMinutes }) => {
+                                setCreatePrefill({
+                                    agentId: calendarAgentId || undefined,
+                                    scheduledAt,
+                                    durationMinutes,
+                                });
+                                setCreateOpen(true);
+                            }}
+                            onAppointmentClick={(a) => setEditAppointment(a)}
+                        />
+                    ) : (
+                        <div
+                            className="flex flex-col gap-4 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900/40 p-4 sm:p-5 min-h-[360px] animate-pulse"
+                            aria-hidden
+                        >
+                            <div className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800" />
+                            <div className="flex-1 min-h-[280px] rounded-xl bg-gray-100 dark:bg-gray-800" />
+                        </div>
+                    ))}
 
                 {view === "list" && (
                     <DataTable<Appointment>
