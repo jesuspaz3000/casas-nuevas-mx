@@ -21,6 +21,8 @@ interface HeaderProps {
 export function Header({ onMenuClick, onToggleCollapse, collapsed }: HeaderProps) {
     const user = useAuthStore((s) => s.user);
     const { ref: menuRef, trigger } = useRipple<HTMLButtonElement>();
+    const { ref: avatarBtnRef, trigger: avatarTrigger } = useRipple<HTMLButtonElement>();
+    const { ref: logoutBtnRef, trigger: logoutTrigger } = useRipple<HTMLButtonElement>();
     const { dialogOpen, loading, requestLogout, cancelLogout, confirmLogout } = useLogout();
 
     const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
@@ -86,7 +88,8 @@ export function Header({ onMenuClick, onToggleCollapse, collapsed }: HeaderProps
                     {/* Avatar */}
                     <div ref={avatarRef} className="relative">
                         <button
-                            onClick={() => setAvatarMenuOpen((v) => !v)}
+                            ref={avatarBtnRef}
+                            onClick={(e) => { avatarTrigger(e); setAvatarMenuOpen((v) => !v); }}
                             className="ripple flex items-center gap-2.5 pl-1 pr-3 py-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
                         >
                             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
@@ -132,7 +135,8 @@ export function Header({ onMenuClick, onToggleCollapse, collapsed }: HeaderProps
                                 {/* Logout */}
                                 <div className="p-2">
                                     <button
-                                        onClick={() => { setAvatarMenuOpen(false); requestLogout(); }}
+                                        ref={logoutBtnRef}
+                                        onClick={(e) => { logoutTrigger(e); setAvatarMenuOpen(false); requestLogout(); }}
                                         className="ripple w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
                                     >
                                         <LogoutIcon sx={{ fontSize: 17 }} />

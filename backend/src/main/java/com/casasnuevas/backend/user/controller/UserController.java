@@ -29,19 +29,20 @@ public class UserController {
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Listar usuarios",
-               description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`")
+               description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`. Parámetro `search` filtra por nombre o email.")
     public ResponseEntity<Object> findAll(
             @Parameter(description = "Resultados por página") @RequestParam(required = false) Integer limit,
             @Parameter(description = "Desplazamiento")        @RequestParam(required = false) Integer offset,
+            @Parameter(description = "Búsqueda por nombre o email") @RequestParam(required = false) String search,
             HttpServletRequest request
     ) {
         if (limit != null && offset != null) {
             PaginationUtils.validate(limit, offset);
-            var page = userService.findAll(PaginationUtils.toPageable(limit, offset));
+            var page = userService.findAll(PaginationUtils.toPageable(limit, offset), search);
             return ResponseEntity.ok(PaginationUtils.build(page, limit, offset,
                     request.getRequestURL().toString(), request.getQueryString()));
         }
-        return ResponseEntity.ok(userService.findAll());
+        return ResponseEntity.ok(userService.findAll(search));
     }
 
     @GetMapping("/{id}")

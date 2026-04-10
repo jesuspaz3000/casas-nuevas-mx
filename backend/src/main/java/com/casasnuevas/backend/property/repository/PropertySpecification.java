@@ -16,6 +16,9 @@ public class PropertySpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
+            if (filter.search() != null && !filter.search().isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("title")), "%" + filter.search().trim().toLowerCase() + "%"));
+            }
             if (filter.type() != null) {
                 predicates.add(cb.equal(root.get("type"), filter.type()));
             }

@@ -33,6 +33,7 @@ public class PropertyController {
     @Operation(summary = "Listar propiedades",
                description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`")
     public ResponseEntity<Object> findAll(
+            @Parameter(description = "Buscar por título")  @RequestParam(required = false) String search,
             @Parameter(description = "Tipo de propiedad") @RequestParam(required = false) Property.PropertyType type,
             @Parameter(description = "Estatus")           @RequestParam(required = false) Property.PropertyStatus status,
             @Parameter(description = "Ciudad")            @RequestParam(required = false) String city,
@@ -47,7 +48,7 @@ public class PropertyController {
             HttpServletRequest request
     ) {
         PropertyFilterDTO filter = new PropertyFilterDTO(
-                type, status, city, neighborhood, priceMin, priceMax, bedroomsMin, bathroomsMin, areaM2Min
+                search, type, status, city, neighborhood, priceMin, priceMax, bedroomsMin, bathroomsMin, areaM2Min
         );
 
         if (limit != null && offset != null) {

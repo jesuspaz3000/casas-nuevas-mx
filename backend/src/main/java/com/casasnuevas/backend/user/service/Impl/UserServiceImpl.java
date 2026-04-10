@@ -30,8 +30,20 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public List<UserDTO> findAll(String search) {
+        if (search == null || search.isBlank()) return findAll();
+        return userRepository.searchActive(search.trim()).stream().map(this::toDTO).toList();
+    }
+
+    @Override
     public Page<UserDTO> findAll(Pageable pageable) {
         return userRepository.findByIsActiveTrue(pageable).map(this::toDTO);
+    }
+
+    @Override
+    public Page<UserDTO> findAll(Pageable pageable, String search) {
+        if (search == null || search.isBlank()) return findAll(pageable);
+        return userRepository.searchActive(search.trim(), pageable).map(this::toDTO);
     }
 
     @Override
@@ -59,6 +71,7 @@ public class UserServiceImpl implements UserService {
         if (dto.name() != null)     user.setName(dto.name());
         if (dto.email() != null)    user.setEmail(dto.email());
         if (dto.password() != null) user.setPassword(passwordEncoder.encode(dto.password()));
+        if (dto.role() != null)     user.setRole(dto.role());
         return toDTO(userRepository.save(user));
     }
 

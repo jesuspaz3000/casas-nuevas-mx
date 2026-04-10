@@ -12,7 +12,9 @@ import java.util.UUID;
 
 public interface UserService {
     List<UserDTO> findAll();
+    List<UserDTO> findAll(String search);
     Page<UserDTO> findAll(Pageable pageable);
+    Page<UserDTO> findAll(Pageable pageable, String search);
     UserDTO findById(UUID id);
     UserDTO create(UserCreateDTO dto);
     UserDTO update(UUID id, UserUpdateDTO dto);
