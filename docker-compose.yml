@@ -14,13 +14,6 @@ services:
       - casas_postgres_data:/var/lib/postgresql/data
     networks:
       - casas-network
-    # TCP explícito: más predecible que socket/pg_isready por defecto en algunas imágenes.
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 18
-      start_period: 120s
     restart: always
 
   redis:
@@ -56,9 +49,11 @@ services:
       - ./backend/uploads:/app/uploads
     ports:
       - "8081:8080"
+    # El backend espera a Postgres en docker-entrypoint.sh (nc); no usar service_healthy aquí:
+    # un healthcheck mal calibrado bloqueaba todo el stack sin mostrar el error real en logs.
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_started
       redis:
         condition: service_started
     networks:
@@ -82,6 +77,3 @@ volumes:
 networks:
   casas-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.30.0.0/16
