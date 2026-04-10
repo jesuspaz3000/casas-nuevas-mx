@@ -69,6 +69,7 @@ Table appointments {
   client_id uuid [not null, ref: > clients.id]
   agent_id uuid [not null, ref: > users.id]
   scheduled_at timestamp [not null]
+  duration_minutes int [not null, default: 60, note: 'duracion en minutos; usado para detectar solapamientos y vista calendario']
   status appointment_status_enum [not null, note: 'PENDING, CONFIRMED, CANCELLED, DONE']
   notes text
   created_at timestamp [default: `now()`]
@@ -78,7 +79,7 @@ Table appointments {
 
 Table contracts {
   id uuid [pk, default: `gen_random_uuid()`]
-  folio varchar(30) [unique, not null, note: 'CNMX-20260408-001']
+  folio varchar(64) [unique, not null, note: 'CNMX-20260408-001']
   property_id uuid [not null, ref: > properties.id]
   client_id uuid [not null, ref: > clients.id]
   agent_id uuid [not null, ref: > users.id]
@@ -89,7 +90,7 @@ Table contracts {
   client_rfc varchar(13)
   client_address text
   client_cfdi_use varchar(10) [note: 'G03']
-  company_rfc varchar(13) [default: 'CNMX8506269H50']
+  company_rfc varchar(20) [default: 'CNMX8506269H50', note: 'varchar(20) para cubrir RFC persona moral de hasta 14 chars']
   company_name varchar(150) [default: 'Casas Nuevas MX']
   pdf_url varchar(500)
   created_at timestamp [default: `now()`]
