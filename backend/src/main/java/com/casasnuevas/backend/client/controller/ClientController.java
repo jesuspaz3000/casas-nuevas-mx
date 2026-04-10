@@ -2,6 +2,7 @@ package com.casasnuevas.backend.client.controller;
 
 import com.casasnuevas.backend.client.dto.ClientCreateDTO;
 import com.casasnuevas.backend.client.dto.ClientDTO;
+import com.casasnuevas.backend.client.dto.ClientFilterDTO;
 import com.casasnuevas.backend.client.dto.ClientUpdateDTO;
 import com.casasnuevas.backend.client.model.Client;
 import com.casasnuevas.backend.client.service.ClientService;
@@ -29,19 +30,22 @@ public class ClientController {
 
     @GetMapping
     @Operation(summary = "Listar clientes",
-               description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`")
+               description = "Sin `limit`/`offset` → array plano. Con ambos → `{ count, next, previous, results }`. Parámetros `search` y `status` aplican filtros.")
     public ResponseEntity<Object> findAll(
+            @Parameter(description = "Búsqueda por nombre, email o teléfono") @RequestParam(required = false) String search,
+            @Parameter(description = "Filtro por estatus CRM") @RequestParam(required = false) Client.ClientStatus status,
             @Parameter(description = "Resultados por página") @RequestParam(required = false) Integer limit,
             @Parameter(description = "Desplazamiento")        @RequestParam(required = false) Integer offset,
             HttpServletRequest request
     ) {
+        ClientFilterDTO filter = new ClientFilterDTO(search, status);
         if (limit != null && offset != null) {
             PaginationUtils.validate(limit, offset);
-            var page = clientService.findAll(PaginationUtils.toPageable(limit, offset));
+            var page = clientService.findAll(filter, PaginationUtils.toPageable(limit, offset));
             return ResponseEntity.ok(PaginationUtils.build(page, limit, offset,
                     request.getRequestURL().toString(), request.getQueryString()));
         }
-        return ResponseEntity.ok(clientService.findAll());
+        return ResponseEntity.ok(clientService.findAll(filter));
     }
 
     @GetMapping("/agent/{agentId}")

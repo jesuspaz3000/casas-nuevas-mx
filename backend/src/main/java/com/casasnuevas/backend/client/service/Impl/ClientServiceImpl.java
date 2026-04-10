@@ -2,9 +2,11 @@ package com.casasnuevas.backend.client.service.Impl;
 
 import com.casasnuevas.backend.client.dto.ClientCreateDTO;
 import com.casasnuevas.backend.client.dto.ClientDTO;
+import com.casasnuevas.backend.client.dto.ClientFilterDTO;
 import com.casasnuevas.backend.client.dto.ClientUpdateDTO;
 import com.casasnuevas.backend.client.model.Client;
 import com.casasnuevas.backend.client.repository.ClientRepository;
+import com.casasnuevas.backend.client.repository.ClientSpecification;
 import com.casasnuevas.backend.client.service.ClientService;
 import com.casasnuevas.backend.common.exception.ResourceNotFoundException;
 import com.casasnuevas.backend.user.repository.UserRepository;
@@ -31,8 +33,20 @@ public class ClientServiceImpl implements ClientService {
     }
 
     @Override
+    public List<ClientDTO> findAll(ClientFilterDTO filter) {
+        return clientRepository.findAll(ClientSpecification.withFilters(filter))
+                .stream().map(this::toDTO).toList();
+    }
+
+    @Override
     public Page<ClientDTO> findAll(Pageable pageable) {
         return clientRepository.findAll(pageable).map(this::toDTO);
+    }
+
+    @Override
+    public Page<ClientDTO> findAll(ClientFilterDTO filter, Pageable pageable) {
+        return clientRepository.findAll(ClientSpecification.withFilters(filter), pageable)
+                .map(this::toDTO);
     }
 
     @Override

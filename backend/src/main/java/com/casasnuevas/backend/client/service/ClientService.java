@@ -2,6 +2,7 @@ package com.casasnuevas.backend.client.service;
 
 import com.casasnuevas.backend.client.dto.ClientCreateDTO;
 import com.casasnuevas.backend.client.dto.ClientDTO;
+import com.casasnuevas.backend.client.dto.ClientFilterDTO;
 import com.casasnuevas.backend.client.dto.ClientUpdateDTO;
 import com.casasnuevas.backend.client.model.Client;
 
@@ -13,7 +14,9 @@ import java.util.UUID;
 
 public interface ClientService {
     List<ClientDTO> findAll();
+    List<ClientDTO> findAll(ClientFilterDTO filter);
     Page<ClientDTO> findAll(Pageable pageable);
+    Page<ClientDTO> findAll(ClientFilterDTO filter, Pageable pageable);
     List<ClientDTO> findByAgent(UUID agentId);
     List<ClientDTO> findByStatus(Client.ClientStatus status);
     ClientDTO findById(UUID id);
