@@ -8,13 +8,6 @@ services:
       POSTGRES_PASSWORD: litonaso
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      # Sin -d: durante init el cluster puede aceptar conexiones antes de que exista la DB con nombre fijo.
-      test: ["CMD-SHELL", "pg_isready -U postgres || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 60s
     networks:
       - casas-network
     restart: always
@@ -52,11 +45,11 @@ services:
       - ./backend/uploads:/app/uploads
     ports:
       - "8081:8080"
+    # Sin healthcheck en postgres: en algunos VPS pg_isready marca unhealthy y bloquea todo el stack.
+    # El backend (perfil docker) espera hasta 3 min la 1ª conexión Hikari; restart: always reintenta si Postgres aún inicia.
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - postgres
+      - redis
     networks:
       - casas-network
     restart: always
