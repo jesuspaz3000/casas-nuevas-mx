@@ -8,12 +8,13 @@ services:
       POSTGRES_PASSWORD: litonaso
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
+    # Imagen oficial: pg_isready sin -d (solo “¿acepta el servidor?”). start_period alto = init en disco lento.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d casas_nuevas_db"]
+      test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 15s
+      retries: 20
+      start_period: 90s
     networks:
       - casas-network
     restart: always
