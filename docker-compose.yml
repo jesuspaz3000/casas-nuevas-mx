@@ -15,12 +15,13 @@ services:
     networks:
       casas-network:
         ipv4_address: 172.30.0.10
+    # Comprueba que el servidor acepte conexiones (sin -d: más tolerante en primer arranque).
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d casas_nuevas_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
-      retries: 12
-      start_period: 40s
+      retries: 15
+      start_period: 60s
     restart: always
 
   redis:
