@@ -8,6 +8,13 @@ services:
       POSTGRES_PASSWORD: litonaso
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Sin -d: durante init el cluster puede aceptar conexiones antes de que exista la DB con nombre fijo.
+      test: ["CMD-SHELL", "pg_isready -U postgres || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
     networks:
       - casas-network
     restart: always
@@ -37,14 +44,19 @@ services:
       MAIL_PORT: 587
       MAIL_USERNAME: veyito30000@gmail.com
       MAIL_PASSWORD: qrcelhttsykflffs
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/casas_nuevas_db
+      # sslmode=disable: conexión interna entre contenedores (evita negociación SSL que a veces falla)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/casas_nuevas_db?sslmode=disable
+      # En algunos VPS Java resuelve IPv6 primero; forzar IPv4 evita timeouts raros hacia Postgres
+      JAVA_TOOL_OPTIONS: -Djava.net.preferIPv4Stack=true
     volumes:
       - ./backend/uploads:/app/uploads
     ports:
       - "8081:8080"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - casas-network
     restart: always
