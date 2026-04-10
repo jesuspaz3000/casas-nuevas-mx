@@ -10,10 +10,14 @@ import com.casasnuevas.backend.contract.model.Contract;
 import com.casasnuevas.backend.contract.repository.ContractRepository;
 import com.casasnuevas.backend.contract.repository.ContractSpecification;
 import com.casasnuevas.backend.contract.service.ContractService;
+import com.casasnuevas.backend.property.model.Property;
 import com.casasnuevas.backend.property.repository.PropertyRepository;
 import com.casasnuevas.backend.user.repository.UserRepository;
 import com.lowagie.text.*;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.pdf.draw.LineSeparator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -21,13 +25,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -41,6 +51,15 @@ public class ContractServiceImpl implements ContractService {
 
     @Value("${file.upload-dir:uploads}")
     private String uploadDir;
+
+    private static final String DEFAULT_COMPANY_NAME = "Casas Nuevas MX";
+    private static final String DEFAULT_COMPANY_RFC = "CNMX8506269H50";
+
+    private static final Color BRAND = new Color(30, 64, 175);
+    private static final Color TEXT_MUTED = new Color(107, 114, 128);
+    private static final Color TEXT_BODY = new Color(17, 24, 39);
+    private static final Color ROW_ALT = new Color(249, 250, 251);
+    private static final Color BORDER = new Color(229, 231, 235);
 
     @Override
     public List<ContractDTO> findAll() {
@@ -79,16 +98,28 @@ public class ContractServiceImpl implements ContractService {
     public ContractDTO create(ContractCreateDTO dto) {
         String folio = generateFolio();
 
+        Property property = propertyRepository.findById(dto.propertyId())
+                .orElseThrow(() -> new ResourceNotFoundException("Property", dto.propertyId()));
+        if (property.getStatus() == Property.PropertyStatus.SOLD) {
+            throw new IllegalArgumentException("La propiedad está vendida y no admite nuevos contratos.");
+        }
+
+        if (contractRepository.existsByProperty_IdAndStatusIn(dto.propertyId(),
+                EnumSet.of(Contract.ContractStatus.DRAFT, Contract.ContractStatus.PENDING_SIGNATURE))) {
+            throw new IllegalArgumentException(
+                    "Esta propiedad ya tiene un contrato en borrador o pendiente de firma. "
+                            + "Fírmalo, cancélalo o edítalo antes de crear otro sobre la misma propiedad.");
+        }
+
         Contract contract = Contract.builder()
                 .folio(folio)
-                .property(propertyRepository.findById(dto.propertyId())
-                        .orElseThrow(() -> new ResourceNotFoundException("Property", dto.propertyId())))
+                .property(property)
                 .client(clientRepository.findById(dto.clientId())
                         .orElseThrow(() -> new ResourceNotFoundException("Client", dto.clientId())))
                 .agent(userRepository.findById(dto.agentId())
                         .orElseThrow(() -> new ResourceNotFoundException("User", dto.agentId())))
                 .contractType(dto.contractType())
-                .status(Contract.ContractStatus.DRAFT)
+                .status(Contract.ContractStatus.PENDING_SIGNATURE)
                 .reservationPrice(dto.reservationPrice())
                 .salePrice(dto.salePrice())
                 .clientRfc(dto.clientRfc())
@@ -103,13 +134,30 @@ public class ContractServiceImpl implements ContractService {
     @Transactional
     public ContractDTO update(UUID id, ContractUpdateDTO dto) {
         Contract contract = getOrThrow(id);
+        Contract.ContractStatus previousStatus = contract.getStatus();
         if (dto.status() != null)       contract.setStatus(dto.status());
         if (dto.salePrice() != null)    contract.setSalePrice(dto.salePrice());
         if (dto.clientRfc() != null)    contract.setClientRfc(dto.clientRfc());
         if (dto.clientAddress() != null) contract.setClientAddress(dto.clientAddress());
         if (dto.clientCfdiUse() != null) contract.setClientCfdiUse(dto.clientCfdiUse());
         if (dto.pdfUrl() != null)       contract.setPdfUrl(dto.pdfUrl());
+
+        if (dto.status() == Contract.ContractStatus.SIGNED && previousStatus != Contract.ContractStatus.SIGNED) {
+            applyPropertyStatusWhenContractSigned(contract);
+        }
+
         return toDTO(contractRepository.save(contract));
+    }
+
+    /** Compraventa firmada → propiedad vendida; reserva firmada → propiedad reservada. */
+    private void applyPropertyStatusWhenContractSigned(Contract contract) {
+        Property property = contract.getProperty();
+        if (contract.getContractType() == Contract.ContractType.PURCHASE_AGREEMENT) {
+            property.setStatus(Property.PropertyStatus.SOLD);
+        } else if (contract.getContractType() == Contract.ContractType.RESERVATION) {
+            property.setStatus(Property.PropertyStatus.RESERVED);
+        }
+        propertyRepository.save(property);
     }
 
     @Override
@@ -119,43 +167,91 @@ public class ContractServiceImpl implements ContractService {
 
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Document doc = new Document(PageSize.A4, 50, 50, 60, 60);
+            Document doc = new Document(PageSize.A4, 48, 48, 48, 48);
             PdfWriter.getInstance(doc, out);
             doc.open();
 
-            Font titleFont  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
-            Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11);
-            Font bodyFont   = FontFactory.getFont(FontFactory.HELVETICA, 10);
+            Font brandFont = new Font(Font.HELVETICA, 20, Font.BOLD, BRAND);
+            Font docTitleFont = new Font(Font.HELVETICA, 14, Font.BOLD, TEXT_BODY);
+            Font metaFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_MUTED);
+            Font sectionHeadFont = new Font(Font.HELVETICA, 11, Font.BOLD, Color.WHITE);
+            Font labelFont = new Font(Font.HELVETICA, 9, Font.BOLD, TEXT_MUTED);
+            Font valueFont = new Font(Font.HELVETICA, 10, Font.NORMAL, TEXT_BODY);
+            Font smallFont = new Font(Font.HELVETICA, 9, Font.NORMAL, TEXT_MUTED);
 
-            doc.add(new Paragraph("CASAS NUEVAS MX", titleFont));
-            doc.add(new Paragraph("Contrato de " + formatContractType(c.getContractType()), titleFont));
-            doc.add(new Paragraph("Folio: " + c.getFolio(), bodyFont));
-            doc.add(new Paragraph("Fecha: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), bodyFont));
+            Paragraph brand = new Paragraph("CASAS NUEVAS MX", brandFont);
+            brand.setAlignment(Element.ALIGN_CENTER);
+            brand.setSpacingAfter(4);
+            doc.add(brand);
+
+            Paragraph docTitle = new Paragraph("Contrato de " + formatContractType(c.getContractType()), docTitleFont);
+            docTitle.setAlignment(Element.ALIGN_CENTER);
+            docTitle.setSpacingAfter(12);
+            doc.add(docTitle);
+
+            PdfPTable meta = new PdfPTable(2);
+            meta.setWidthPercentage(55);
+            meta.setHorizontalAlignment(Element.ALIGN_CENTER);
+            meta.setSpacingAfter(8);
+            meta.setWidths(new float[]{1f, 1f});
+            addMetaCell(meta, "Folio", c.getFolio(), labelFont, valueFont);
+            addMetaCell(meta, "Fecha de emisión", LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), labelFont, valueFont);
+            doc.add(meta);
+
+            LineSeparator line = new LineSeparator(1f, 100f, BRAND, Element.ALIGN_CENTER, -2f);
+            Paragraph sep = new Paragraph();
+            sep.add(new Chunk(line));
+            sep.setSpacingAfter(14);
+            doc.add(sep);
+
+            BigDecimal displaySale = c.getSalePrice() != null ? c.getSalePrice() : c.getReservationPrice();
+
+            doc.add(buildSection("Datos de la propiedad", sectionHeadFont, labelFont, valueFont,
+                    new String[][]{
+                            {"Propiedad", c.getProperty().getTitle()},
+                            {"Precio de venta", formatMoneyMx(displaySale)},
+                            {"Monto de reserva", formatMoneyMx(c.getReservationPrice())}
+                    }));
+
+            doc.add(buildSection("Datos del cliente", sectionHeadFont, labelFont, valueFont,
+                    new String[][]{
+                            {"Nombre", c.getClient().getName()},
+                            {"RFC", nvl(c.getClientRfc())},
+                            {"Domicilio fiscal", nvl(c.getClientAddress())},
+                            {"Uso CFDI", nvl(c.getClientCfdiUse())}
+                    }));
+
+            doc.add(buildSection("Datos de la empresa (emisora)", sectionHeadFont, labelFont, valueFont,
+                    new String[][]{
+                            {"Razón social", companyNameOrDefault(c)},
+                            {"RFC", companyRfcOrDefault(c)}
+                    }));
+
+            PdfPTable agentTable = new PdfPTable(1);
+            agentTable.setWidthPercentage(100);
+            agentTable.setSpacingBefore(6);
+            PdfPCell agentCell = new PdfPCell(new Phrase("Agente responsable: " + c.getAgent().getName(), valueFont));
+            agentCell.setBorder(Rectangle.BOX);
+            agentCell.setBorderColor(BORDER);
+            agentCell.setBackgroundColor(ROW_ALT);
+            agentCell.setPadding(10);
+            agentTable.addCell(agentCell);
+            doc.add(agentTable);
+
             doc.add(Chunk.NEWLINE);
+            Paragraph sigHint = new Paragraph("Las partes firman de conformidad en la ciudad y fecha indicadas en el encabezado.", smallFont);
+            sigHint.setAlignment(Element.ALIGN_CENTER);
+            sigHint.setSpacingAfter(14);
+            doc.add(sigHint);
 
-            doc.add(new Paragraph("DATOS DE LA PROPIEDAD", headerFont));
-            doc.add(new Paragraph("Propiedad: " + c.getProperty().getTitle(), bodyFont));
-            doc.add(new Paragraph("Precio de venta: $" + (c.getSalePrice() != null ? c.getSalePrice() : c.getReservationPrice()) + " MXN", bodyFont));
-            doc.add(new Paragraph("Monto de reserva: $" + c.getReservationPrice() + " MXN", bodyFont));
-            doc.add(Chunk.NEWLINE);
-
-            doc.add(new Paragraph("DATOS DEL CLIENTE", headerFont));
-            doc.add(new Paragraph("Nombre: " + c.getClient().getName(), bodyFont));
-            doc.add(new Paragraph("RFC: " + nvl(c.getClientRfc()), bodyFont));
-            doc.add(new Paragraph("Domicilio fiscal: " + nvl(c.getClientAddress()), bodyFont));
-            doc.add(new Paragraph("Uso CFDI: " + nvl(c.getClientCfdiUse()), bodyFont));
-            doc.add(Chunk.NEWLINE);
-
-            doc.add(new Paragraph("DATOS DE LA EMPRESA", headerFont));
-            doc.add(new Paragraph("Razón social: " + c.getCompanyName(), bodyFont));
-            doc.add(new Paragraph("RFC: " + c.getCompanyRfc(), bodyFont));
-            doc.add(Chunk.NEWLINE);
-
-            doc.add(new Paragraph("Agente responsable: " + c.getAgent().getName(), bodyFont));
-            doc.add(Chunk.NEWLINE);
-
-            doc.add(new Paragraph("_______________________________          _______________________________", bodyFont));
-            doc.add(new Paragraph("       Firma del cliente                          Firma del agente", bodyFont));
+            PdfPTable sig = new PdfPTable(2);
+            sig.setWidthPercentage(100);
+            sig.setWidths(new float[]{1f, 1f});
+            sig.setSpacingBefore(4);
+            sig.setSpacingAfter(8);
+            sig.addCell(buildSignatureColumn("Firma del cliente", smallFont));
+            sig.addCell(buildSignatureColumn("Firma del agente", smallFont));
+            doc.add(sig);
 
             doc.close();
 
@@ -178,10 +274,11 @@ public class ContractServiceImpl implements ContractService {
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    /** Folio único por día + sufijo aleatorio (evita colisiones por count() o solicitudes concurrentes). */
     private String generateFolio() {
         String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-        long count = contractRepository.count() + 1;
-        return String.format("CNMX-%s-%03d", date, count);
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase(Locale.ROOT);
+        return String.format("CNMX-%s-%s", date, suffix);
     }
 
     private String formatContractType(Contract.ContractType type) {
@@ -206,8 +303,120 @@ public class ContractServiceImpl implements ContractService {
                 c.getContractType(), c.getStatus(),
                 c.getReservationPrice(), c.getSalePrice(),
                 c.getClientRfc(), c.getClientAddress(), c.getClientCfdiUse(),
-                c.getCompanyRfc(), c.getCompanyName(),
+                companyRfcOrDefault(c), companyNameOrDefault(c),
                 c.getPdfUrl(), c.getCreatedAt()
         );
+    }
+
+    private void addMetaCell(PdfPTable table, String label, String value, Font labelFont, Font valueFont) {
+        Phrase phrase = new Phrase();
+        phrase.add(new Chunk(label + "\n", labelFont));
+        phrase.add(new Chunk(value, valueFont));
+        PdfPCell cell = new PdfPCell(phrase);
+        cell.setBorder(Rectangle.NO_BORDER);
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cell.setVerticalAlignment(Element.ALIGN_TOP);
+        cell.setPadding(4);
+        table.addCell(cell);
+    }
+
+    private PdfPTable buildSection(String title, Font headFont, Font labelFont, Font valueFont, String[][] rows) {
+        PdfPTable table = new PdfPTable(2);
+        try {
+            table.setWidths(new float[]{30f, 70f});
+        } catch (DocumentException ignored) {
+            // widths are valid
+        }
+        table.setWidthPercentage(100);
+        table.setSpacingBefore(10);
+        table.setSpacingAfter(2);
+
+        PdfPCell head = new PdfPCell(new Phrase(title.toUpperCase(Locale.ROOT), headFont));
+        head.setColspan(2);
+        head.setBackgroundColor(BRAND);
+        head.setBorder(Rectangle.BOX);
+        head.setBorderColor(BRAND);
+        head.setPadding(10);
+        head.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(head);
+
+        boolean alt = false;
+        for (String[] row : rows) {
+            String val = row[1] == null ? "—" : row[1];
+            PdfPCell lc = new PdfPCell(new Phrase(row[0], labelFont));
+            lc.setPadding(8);
+            lc.setBorder(Rectangle.BOX);
+            lc.setBorderColor(BORDER);
+            lc.setBackgroundColor(alt ? ROW_ALT : Color.WHITE);
+            lc.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+            PdfPCell vc = new PdfPCell(new Phrase(val, valueFont));
+            vc.setPadding(8);
+            vc.setBorder(Rectangle.BOX);
+            vc.setBorderColor(BORDER);
+            vc.setBackgroundColor(alt ? ROW_ALT : Color.WHITE);
+            vc.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+            table.addCell(lc);
+            table.addCell(vc);
+            alt = !alt;
+        }
+        return table;
+    }
+
+    /**
+     * Columna de firma: espacio en blanco arriba y una línea horizontal propia (borde superior del pie),
+     * para no fusionar una sola raya en todo el ancho del PdfPTable de 2 columnas.
+     */
+    private PdfPCell buildSignatureColumn(String caption, Font captionFont) {
+        PdfPTable inner = new PdfPTable(1);
+        inner.setWidthPercentage(100);
+
+        PdfPCell signSpace = new PdfPCell(new Phrase(" "));
+        signSpace.setMinimumHeight(44);
+        signSpace.setBorder(Rectangle.NO_BORDER);
+        signSpace.setPadding(0);
+        inner.addCell(signSpace);
+
+        Paragraph cap = new Paragraph(caption, captionFont);
+        cap.setAlignment(Element.ALIGN_CENTER);
+        PdfPCell captionCell = new PdfPCell(cap);
+        captionCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        captionCell.setVerticalAlignment(Element.ALIGN_TOP);
+        captionCell.setBorder(Rectangle.TOP);
+        captionCell.setBorderWidthTop(0.75f);
+        captionCell.setBorderColor(BORDER);
+        captionCell.setPaddingTop(8);
+        captionCell.setPaddingBottom(2);
+        captionCell.setPaddingLeft(4);
+        captionCell.setPaddingRight(4);
+        inner.addCell(captionCell);
+
+        PdfPCell outer = new PdfPCell(inner);
+        outer.setBorder(Rectangle.NO_BORDER);
+        outer.setPaddingLeft(16);
+        outer.setPaddingRight(16);
+        outer.setPaddingTop(4);
+        outer.setPaddingBottom(4);
+        return outer;
+    }
+
+    private String formatMoneyMx(BigDecimal amount) {
+        if (amount == null) {
+            return "—";
+        }
+        NumberFormat nf = NumberFormat.getCurrencyInstance(new Locale("es", "MX"));
+        nf.setRoundingMode(RoundingMode.HALF_UP);
+        return nf.format(amount);
+    }
+
+    private String companyNameOrDefault(Contract c) {
+        String n = c.getCompanyName();
+        return (n != null && !n.isBlank()) ? n : DEFAULT_COMPANY_NAME;
+    }
+
+    private String companyRfcOrDefault(Contract c) {
+        String r = c.getCompanyRfc();
+        return (r != null && !r.isBlank()) ? r : DEFAULT_COMPANY_RFC;
     }
 }

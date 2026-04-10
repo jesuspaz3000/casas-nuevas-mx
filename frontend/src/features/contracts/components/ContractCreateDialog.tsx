@@ -12,6 +12,7 @@ import { Property } from "@/features/properties/types/properties.types";
 import { Client } from "@/features/clients/types/clients.types";
 import { User } from "@/features/users/types/users.types";
 import { useAuthStore } from "@/store/auth.store";
+import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import DescriptionIcon from "@mui/icons-material/Description";
 
@@ -69,14 +70,16 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
             UsersService.findAll(),
         ])
             .then(([propsList, clientsList, usersList]) => {
-                setProperties(propsList);
+                setProperties(
+                    propsList.filter((p) => p.status === "AVAILABLE" || p.status === "RESERVED"),
+                );
                 setClients(clientsList);
                 const ag = usersList.filter((u) => u.role === "AGENT" && u.isActive);
                 setAgents(ag);
-                setForm((prev) => ({
+                setForm({
                     ...EMPTY,
-                    agentId: authUser?.role === "AGENT" ? authUser.id : ag[0]?.id ?? "",
-                }));
+                    agentId: authUser?.role === "AGENT" ? authUser.id : "",
+                });
             })
             .catch(() => setServerError("No se pudieron cargar catálogos."));
     }, [open, authUser?.id, authUser?.role]);
@@ -128,14 +131,23 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
             await ContractsService.create(dto);
             setForm({
                 ...EMPTY,
-                agentId: authUser?.role === "AGENT" ? authUser.id : agents[0]?.id ?? "",
+                agentId: authUser?.role === "AGENT" ? authUser.id : "",
             });
             setErrors({});
             setServerError(null);
             onClose();
             onCreated();
-        } catch {
-            setServerError("No se pudo crear el contrato.");
+        } catch (e: unknown) {
+            if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
+                const m = (e.response.data as { message?: string }).message;
+                if (typeof m === "string" && m.trim()) {
+                    setServerError(m);
+                } else {
+                    setServerError("No se pudo crear el contrato.");
+                }
+            } else {
+                setServerError("No se pudo crear el contrato.");
+            }
         } finally {
             setLoading(false);
         }
@@ -150,7 +162,10 @@ export function ContractCreateDialog({ open, onClose, onCreated }: Props) {
 
     const propOptions = [
         { value: "", label: "Seleccionar propiedad" },
-        ...properties.map((p) => ({ value: p.id, label: p.title })),
+        ...properties.map((p) => ({
+            value: p.id,
+            label: p.status === "RESERVED" ? `${p.title} (reservada)` : p.title,
+        })),
     ];
     const clientOptions = [
         { value: "", label: "Seleccionar cliente" },

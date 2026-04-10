@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -16,6 +17,8 @@ import java.util.UUID;
 public interface ContractRepository extends JpaRepository<Contract, UUID>, JpaSpecificationExecutor<Contract> {
 
     Optional<Contract> findByFolio(String folio);
+
+    boolean existsByProperty_IdAndStatusIn(UUID propertyId, Collection<Contract.ContractStatus> statuses);
 
     List<Contract> findByAgentId(UUID agentId);
 

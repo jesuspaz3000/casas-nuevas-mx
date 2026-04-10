@@ -57,10 +57,12 @@ public class Contract extends BaseEntity {
     @Column(name = "client_cfdi_use", length = 10)
     private String clientCfdiUse;
 
-    // Datos fiscales empresa
+    // Datos fiscales empresa (valores por defecto vía @Builder.Default; sin esto el builder deja null en BD)
+    @Builder.Default
     @Column(name = "company_rfc", length = 13)
     private String companyRfc = "CNMX8506269H50";
 
+    @Builder.Default
     @Column(name = "company_name", length = 150)
     private String companyName = "Casas Nuevas MX";
 
