@@ -39,6 +39,9 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       database: 1
+      # Solo usamos StringRedisTemplate (blacklist); los repos son JPA → evita el escaneo y el INFO repetido.
+      repositories:
+        enabled: false
 
   servlet:
     multipart:
