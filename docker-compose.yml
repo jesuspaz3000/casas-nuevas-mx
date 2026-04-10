@@ -8,11 +8,19 @@ services:
       POSTGRES_DB: casas_nuevas_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: litonaso
+    # Evita fallos raros de init en VPS con poco /dev/shm por defecto (64 MiB).
+    shm_size: 256mb
     volumes:
       - casas_postgres_data:/var/lib/postgresql/data
     networks:
       casas-network:
         ipv4_address: 172.30.0.10
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d casas_nuevas_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     restart: always
 
   redis:
@@ -50,8 +58,10 @@ services:
     ports:
       - "8081:8080"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - casas-network
     restart: always
