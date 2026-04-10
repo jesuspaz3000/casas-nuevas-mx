@@ -1,6 +1,7 @@
 package com.casasnuevas.backend.dashboard.dto;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public record DashboardDTO(
         long totalProperties,
@@ -17,5 +18,7 @@ public record DashboardDTO(
         long monthlySignedContracts,
         BigDecimal monthlyRevenue,
         long monthlyNewClients,
-        long monthlyAppointments
+        long monthlyAppointments,
+        /** Últimos 6 meses: contratos firmados e ingresos por mes (createdAt / salePrice). */
+        List<MonthlyChartPoint> monthlySeries
 ) {}

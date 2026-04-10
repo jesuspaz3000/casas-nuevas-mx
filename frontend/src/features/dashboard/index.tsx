@@ -2,6 +2,7 @@
 
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 import { StatCard } from "@/features/dashboard/components/StatCard";
+import { DashboardCharts } from "@/features/dashboard/components/DashboardCharts";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
 import PeopleIcon from "@mui/icons-material/People";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
@@ -88,6 +89,8 @@ export default function Dashboard() {
                     ) : null}
                 </div>
             </section>
+
+            <DashboardCharts data={stats?.monthlySeries ?? []} isLoading={isLoading} />
         </div>
     );
 }

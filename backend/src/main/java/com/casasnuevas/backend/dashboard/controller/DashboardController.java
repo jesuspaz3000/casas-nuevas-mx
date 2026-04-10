@@ -7,6 +7,7 @@ import com.casasnuevas.backend.client.repository.ClientRepository;
 import com.casasnuevas.backend.contract.model.Contract;
 import com.casasnuevas.backend.contract.repository.ContractRepository;
 import com.casasnuevas.backend.dashboard.dto.DashboardDTO;
+import com.casasnuevas.backend.dashboard.dto.MonthlyChartPoint;
 import com.casasnuevas.backend.property.model.Property;
 import com.casasnuevas.backend.property.repository.PropertyRepository;
 import com.casasnuevas.backend.user.model.User;
@@ -23,6 +24,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @RestController
@@ -81,13 +86,34 @@ public class DashboardController {
         long monthlyNewClients  = clientRepository.countByAgentIdAndCreatedAtBetween(agentId, monthStart, monthEnd);
         long monthlyAppointments = appointmentRepository.countByAgentIdAndScheduledAtBetween(agentId, monthStart, monthEnd);
 
+        List<MonthlyChartPoint> monthlySeries = buildMonthlySeries(agentId);
+
         return new DashboardDTO(
                 totalProperties, availableProperties, soldProperties,
                 totalClients, activeClients,
                 totalAppointments, pendingAppointments,
                 totalContracts, signedContracts,
                 totalSalesAmount,
-                monthlySignedContracts, monthlyRevenue, monthlyNewClients, monthlyAppointments
+                monthlySignedContracts, monthlyRevenue, monthlyNewClients, monthlyAppointments,
+                monthlySeries
         );
+    }
+
+    private List<MonthlyChartPoint> buildMonthlySeries(UUID agentId) {
+        List<MonthlyChartPoint> points = new ArrayList<>(6);
+        YearMonth now = YearMonth.now();
+        DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("MMM uuuu", Locale.forLanguageTag("es-MX"));
+        for (int i = 5; i >= 0; i--) {
+            YearMonth ym = now.minusMonths(i);
+            LocalDateTime start = ym.atDay(1).atStartOfDay();
+            LocalDateTime end = ym.atEndOfMonth().atTime(23, 59, 59);
+            long signed = contractRepository.countByAgentIdAndStatusAndCreatedAtBetween(
+                    agentId, Contract.ContractStatus.SIGNED, start, end);
+            BigDecimal rev = contractRepository.sumSalePriceByAgentIdAndCreatedAtBetween(agentId, start, end);
+            String rawLabel = ym.format(labelFmt);
+            String label = rawLabel.isEmpty() ? rawLabel : Character.toUpperCase(rawLabel.charAt(0)) + rawLabel.substring(1);
+            points.add(new MonthlyChartPoint(label, signed, rev != null ? rev : BigDecimal.ZERO));
+        }
+        return points;
     }
 }

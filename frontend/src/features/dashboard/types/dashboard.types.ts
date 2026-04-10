@@ -1,3 +1,9 @@
+export interface MonthlyChartPoint {
+    label: string;
+    signedContracts: number;
+    revenue: number;
+}
+
 export interface DashboardStats {
     totalProperties: number;
     availableProperties: number;
@@ -14,4 +20,6 @@ export interface DashboardStats {
     monthlyRevenue: number;
     monthlyNewClients: number;
     monthlyAppointments: number;
+    /** Últimos 6 meses (contratos firmados + ingresos por mes). */
+    monthlySeries: MonthlyChartPoint[];
 }
