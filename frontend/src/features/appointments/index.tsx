@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAppointments } from "@/features/appointments/hooks/useAppointments";
 import { Appointment, AppointmentStatus } from "@/features/appointments/types/appointments.types";
 import { DataTable, Column } from "@/shared/components/dataTable";
@@ -9,11 +9,16 @@ import { Select } from "@/shared/components/Select";
 import { AppointmentCreateDialog } from "@/features/appointments/components/AppointmentCreateDialog";
 import { AppointmentEditDialog } from "@/features/appointments/components/AppointmentEditDialog";
 import { AppointmentDeleteDialog } from "@/features/appointments/components/AppointmentDeleteDialog";
+import { AppointmentWeekCalendar, startOfWeekMonday } from "@/features/appointments/components/AppointmentWeekCalendar";
+import { UsersService } from "@/features/users/services/users.service";
+import { User } from "@/features/users/types/users.types";
+import { useAuthStore } from "@/store/auth.store";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import ViewListIcon from "@mui/icons-material/ViewList";
 
 /* ── Badges ─────────────────────────────────────────────── */
 const STATUS_LABEL: Record<string, string> = {
@@ -43,7 +48,17 @@ const formatDateTime = (iso: string) => {
         + " " + d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
 };
 
+function formatTimeRange(iso: string, durationMinutes?: number) {
+    const start = new Date(iso);
+    const dur = durationMinutes ?? 60;
+    const end = new Date(start.getTime() + dur * 60_000);
+    const t0 = start.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+    const t1 = end.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+    return `${t0} – ${t1}`;
+}
+
 export default function Appointments() {
+    const authUser = useAuthStore((s) => s.user);
     const {
         appointments, isLoading, error,
         total, page, totalPages, pageSize, setPage, setPageSize,
@@ -52,16 +67,50 @@ export default function Appointments() {
         refetch, remove,
     } = useAppointments();
 
+    const [view, setView] = useState<"calendar" | "list">("calendar");
+    const [calendarWeek, setCalendarWeek] = useState(() => startOfWeekMonday(new Date()));
+    const [calendarAgentId, setCalendarAgentId] = useState("");
+    const [agentsForCalendar, setAgentsForCalendar] = useState<User[]>([]);
+    const [calendarRefreshToken, setCalendarRefreshToken] = useState(0);
+    const [createPrefill, setCreatePrefill] = useState<{
+        agentId?: string;
+        scheduledAt?: string;
+        durationMinutes?: number;
+    }>({});
+
     const [createOpen, setCreateOpen]             = useState(false);
     const [editAppointment, setEditAppointment]   = useState<Appointment | null>(null);
     const [deleteAppointment, setDeleteAppointment] = useState<Appointment | null>(null);
     const [deleteLoading, setDeleteLoading]       = useState(false);
 
+    const bumpCalendar = () => setCalendarRefreshToken((n) => n + 1);
+
+    useEffect(() => {
+        UsersService.findAll()
+            .then((all) => setAgentsForCalendar(all.filter((u) => u.role === "AGENT" && u.isActive)))
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (authUser?.role === "AGENT" && authUser.id) {
+            setCalendarAgentId(authUser.id);
+        }
+    }, [authUser?.id, authUser?.role]);
+
     const handleDelete = async () => {
         if (!deleteAppointment) return;
         setDeleteLoading(true);
-        try { await remove(deleteAppointment.id); setDeleteAppointment(null); }
+        try {
+            await remove(deleteAppointment.id);
+            setDeleteAppointment(null);
+            bumpCalendar();
+        }
         finally { setDeleteLoading(false); }
+    };
+
+    const openCreateFromToolbar = () => {
+        setCreatePrefill({ agentId: calendarAgentId || undefined });
+        setCreateOpen(true);
     };
 
     const columns: Column<Appointment>[] = [
@@ -96,9 +145,14 @@ export default function Appointments() {
             render: (a) => a.agentName,
         },
         {
-            key: "scheduledAt", header: "Fecha y hora",
+            key: "scheduledAt", header: "Horario",
             className: "text-gray-600 dark:text-gray-300 text-sm whitespace-nowrap tabular-nums",
-            render: (a) => formatDateTime(a.scheduledAt),
+            render: (a) => (
+                <div>
+                    <div>{formatDateTime(a.scheduledAt)}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">{formatTimeRange(a.scheduledAt, a.durationMinutes)}</div>
+                </div>
+            ),
         },
         {
             key: "status", header: "Estado",
@@ -141,38 +195,105 @@ export default function Appointments() {
                     </div>
                 </div>
 
-                {/* Filtros + botón crear */}
+                {/* Vista + filtros lista + crear */}
                 <div className="flex flex-wrap items-center gap-3">
-                    <div className="relative flex-1 min-w-[200px] max-w-xs">
-                        <SearchIcon sx={{ fontSize: 18 }} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input type="text" placeholder="Buscar por cliente o propiedad..." value={search} onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" />
+                    <div className="flex rounded-xl border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-800/80">
+                        <button
+                            type="button"
+                            onClick={() => setView("calendar")}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                                view === "calendar"
+                                    ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                            }`}
+                        >
+                            <CalendarMonthIcon sx={{ fontSize: 17 }} />
+                            Calendario
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setView("list")}
+                            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                                view === "list"
+                                    ? "bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                            }`}
+                        >
+                            <ViewListIcon sx={{ fontSize: 17 }} />
+                            Lista
+                        </button>
                     </div>
-                    <Select value={statusFilter} onChange={(v) => setStatusFilter(v as AppointmentStatus | "")} options={STATUS_OPTIONS} className="w-44" />
+
+                    {view === "list" && (
+                        <>
+                            <div className="relative flex-1 min-w-[200px] max-w-xs">
+                                <SearchIcon sx={{ fontSize: 18 }} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                <input type="text" placeholder="Buscar por cliente o propiedad..." value={search} onChange={(e) => setSearch(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" />
+                            </div>
+                            <Select value={statusFilter} onChange={(v) => setStatusFilter(v as AppointmentStatus | "")} options={STATUS_OPTIONS} className="w-44" />
+                        </>
+                    )}
+
                     <div className="ml-auto">
-                        <Button variant="primary" size="md" onClick={() => setCreateOpen(true)}>
+                        <Button variant="primary" size="md" onClick={openCreateFromToolbar}>
                             <AddIcon sx={{ fontSize: 17 }} />
                             Nueva cita
                         </Button>
                     </div>
                 </div>
 
-                {error && (
+                {error && view === "list" && (
                     <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3">{error}</div>
                 )}
 
-                <DataTable<Appointment>
-                    columns={columns} data={appointments} keyExtractor={(a) => a.id}
-                    isLoading={isLoading} page={page} totalPages={totalPages} total={total}
-                    pageSize={pageSize} pageSizeOptions={[5, 10, 25, 50]}
-                    onPageChange={setPage} onPageSizeChange={setPageSize}
-                    emptyMessage={search || statusFilter ? "Sin resultados para los filtros aplicados" : "No hay citas registradas"}
-                    emptyIcon={<CalendarMonthIcon sx={{ fontSize: 48 }} />}
-                />
+                {view === "calendar" && (
+                    <AppointmentWeekCalendar
+                        weekStart={calendarWeek}
+                        onWeekChange={setCalendarWeek}
+                        selectedAgentId={calendarAgentId}
+                        onAgentChange={setCalendarAgentId}
+                        agentOptions={agentsForCalendar}
+                        isAgentRole={authUser?.role === "AGENT"}
+                        refreshToken={calendarRefreshToken}
+                        onConfirmSelection={({ scheduledAt, durationMinutes }) => {
+                            setCreatePrefill({
+                                agentId: calendarAgentId || undefined,
+                                scheduledAt,
+                                durationMinutes,
+                            });
+                            setCreateOpen(true);
+                        }}
+                        onAppointmentClick={(a) => setEditAppointment(a)}
+                    />
+                )}
+
+                {view === "list" && (
+                    <DataTable<Appointment>
+                        columns={columns} data={appointments} keyExtractor={(a) => a.id}
+                        isLoading={isLoading} page={page} totalPages={totalPages} total={total}
+                        pageSize={pageSize} pageSizeOptions={[5, 10, 25, 50]}
+                        onPageChange={setPage} onPageSizeChange={setPageSize}
+                        emptyMessage={search || statusFilter ? "Sin resultados para los filtros aplicados" : "No hay citas registradas"}
+                        emptyIcon={<CalendarMonthIcon sx={{ fontSize: 48 }} />}
+                    />
+                )}
             </div>
 
-            <AppointmentCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={refetch} />
-            <AppointmentEditDialog open={editAppointment !== null} appointment={editAppointment} onClose={() => setEditAppointment(null)} onUpdated={refetch} />
+            <AppointmentCreateDialog
+                open={createOpen}
+                onClose={() => { setCreateOpen(false); setCreatePrefill({}); }}
+                initialAgentId={createPrefill.agentId}
+                initialScheduledAt={createPrefill.scheduledAt}
+                initialDurationMinutes={createPrefill.durationMinutes}
+                onCreated={() => { refetch(); bumpCalendar(); setCreatePrefill({}); }}
+            />
+            <AppointmentEditDialog
+                open={editAppointment !== null}
+                appointment={editAppointment}
+                onClose={() => setEditAppointment(null)}
+                onUpdated={() => { refetch(); bumpCalendar(); }}
+            />
             <AppointmentDeleteDialog open={deleteAppointment !== null} loading={deleteLoading} appointment={deleteAppointment} onConfirm={handleDelete} onCancel={() => setDeleteAppointment(null)} />
         </>
     );

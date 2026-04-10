@@ -5,6 +5,7 @@ import { Button } from "@/shared/components/Button";
 import { Select } from "@/shared/components/Select";
 import { AppointmentsService } from "@/features/appointments/services/appointments.service";
 import { Appointment, AppointmentStatus } from "@/features/appointments/types/appointments.types";
+import axios from "axios";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 
@@ -17,12 +18,20 @@ const STATUS_OPTIONS = [
     { value: "DONE",      label: "Realizada" },
 ];
 
+const DURATION_OPTIONS = [
+    { value: "30", label: "30 min" },
+    { value: "45", label: "45 min" },
+    { value: "60", label: "1 h" },
+    { value: "90", label: "1 h 30" },
+    { value: "120", label: "2 h" },
+];
+
 const inputClass = "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all";
 const labelClass = "block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5";
 const sectionTitleClass = "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider";
 const readonlyClass = "w-full px-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-500 dark:text-gray-400";
 
-type Form = { scheduledAt: string; status: string; notes: string; };
+type Form = { scheduledAt: string; durationMinutes: string; status: string; notes: string; };
 type Errors = Partial<Record<keyof Form, string>>;
 
 function Skel() { return <div className="h-10 rounded-xl bg-gray-100 dark:bg-gray-800 animate-pulse" />; }
@@ -34,7 +43,7 @@ function toDatetimeLocal(iso: string): string {
 }
 
 export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }: Props) {
-    const [form, setForm]               = useState<Form>({ scheduledAt: "", status: "PENDING", notes: "" });
+    const [form, setForm]               = useState<Form>({ scheduledAt: "", durationMinutes: "60", status: "PENDING", notes: "" });
     const [fetched, setFetched]         = useState<Appointment | null>(null);
     const [isFetching, setIsFetching]   = useState(false);
     const [fetchError, setFetchError]   = useState<string | null>(null);
@@ -50,6 +59,7 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                 setFetched(data);
                 setForm({
                     scheduledAt: toDatetimeLocal(data.scheduledAt),
+                    durationMinutes: String(data.durationMinutes ?? 60),
                     status:      data.status,
                     notes:       data.notes ?? "",
                 });
@@ -81,12 +91,19 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
         try {
             await AppointmentsService.update(appointment.id, {
                 scheduledAt: new Date(form.scheduledAt).toISOString(),
+                durationMinutes: Number(form.durationMinutes) || 60,
                 status:      form.status as AppointmentStatus,
                 notes:       form.notes || undefined,
             });
             onClose(); onUpdated();
-        } catch {
-            setServerError("No se pudo actualizar la cita.");
+        } catch (e: unknown) {
+            if (axios.isAxiosError(e) && e.response?.data && typeof e.response.data === "object") {
+                const m = (e.response.data as { message?: string }).message;
+                if (typeof m === "string" && m.trim()) setServerError(m);
+                else setServerError("No se pudo actualizar la cita.");
+            } else {
+                setServerError("No se pudo actualizar la cita.");
+            }
         } finally {
             setLoading(false);
         }
@@ -144,14 +161,18 @@ export function AppointmentEditDialog({ open, appointment, onClose, onUpdated }:
                             <p className={sectionTitleClass}>Programación</p>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label className={labelClass}>Fecha y hora</label>
+                                    <label className={labelClass}>Inicio</label>
                                     {isFetching ? <Skel /> : <input type="datetime-local" value={form.scheduledAt} onChange={set("scheduledAt")} className={inputClass} />}
                                     {errors.scheduledAt && <p className="mt-1 text-xs text-red-500">{errors.scheduledAt}</p>}
                                 </div>
                                 <div>
-                                    <label className={labelClass}>Estado</label>
-                                    {isFetching ? <Skel /> : <Select value={form.status} onChange={setSel("status")} options={STATUS_OPTIONS} />}
+                                    <label className={labelClass}>Duración</label>
+                                    {isFetching ? <Skel /> : <Select value={form.durationMinutes} onChange={setSel("durationMinutes")} options={DURATION_OPTIONS} />}
                                 </div>
+                            </div>
+                            <div>
+                                <label className={labelClass}>Estado</label>
+                                {isFetching ? <Skel /> : <Select value={form.status} onChange={setSel("status")} options={STATUS_OPTIONS} />}
                             </div>
                             <div>
                                 <label className={labelClass}>Notas</label>

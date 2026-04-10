@@ -6,6 +6,7 @@ import com.casasnuevas.backend.property.model.Property;
 import com.casasnuevas.backend.user.model.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDateTime;
@@ -34,6 +35,12 @@ public class Appointment extends BaseEntity {
 
     @Column(name = "scheduled_at", nullable = false)
     private LocalDateTime scheduledAt;
+
+    /** Duración en minutos (para solapes y vista tipo calendario). Requiere DEFAULT en BD para filas ya existentes. */
+    @Builder.Default
+    @ColumnDefault("60")
+    @Column(name = "duration_minutes", nullable = false)
+    private int durationMinutes = 60;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

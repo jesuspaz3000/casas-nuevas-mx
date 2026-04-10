@@ -14,6 +14,7 @@ public record AppointmentDTO(
         UUID agentId,
         String agentName,
         LocalDateTime scheduledAt,
+        int durationMinutes,
         Appointment.AppointmentStatus status,
         String notes,
         LocalDateTime createdAt

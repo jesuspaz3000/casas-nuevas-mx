@@ -18,4 +18,8 @@ public interface ClientRepository extends JpaRepository<Client, UUID>, JpaSpecif
     long countByAgentIdAndStatus(UUID agentId, Client.ClientStatus status);
 
     long countByAgentIdAndCreatedAtBetween(UUID agentId, java.time.LocalDateTime from, java.time.LocalDateTime to);
+
+    long countByStatus(Client.ClientStatus status);
+
+    long countByCreatedAtBetween(java.time.LocalDateTime from, java.time.LocalDateTime to);
 }

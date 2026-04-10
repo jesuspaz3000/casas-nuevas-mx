@@ -8,6 +8,7 @@ import com.casasnuevas.backend.appointment.dto.AppointmentUpdateDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +19,7 @@ public interface AppointmentService {
     Page<AppointmentDTO> findAll(AppointmentFilterDTO filter, Pageable pageable);
     List<AppointmentDTO> findByAgent(UUID agentId);
     List<AppointmentDTO> findByClient(UUID clientId);
+    List<AppointmentDTO> findCalendar(UUID agentId, LocalDateTime from, LocalDateTime to);
     AppointmentDTO findById(UUID id);
     AppointmentDTO create(AppointmentCreateDTO dto);
     AppointmentDTO update(UUID id, AppointmentUpdateDTO dto);

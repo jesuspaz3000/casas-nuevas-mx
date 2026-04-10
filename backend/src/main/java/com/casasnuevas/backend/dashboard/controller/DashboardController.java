@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,11 +30,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
 @RestController
 @RequestMapping("/dashboard")
 @RequiredArgsConstructor
-@Tag(name = "Dashboard", description = "Estadísticas de ventas por agente")
+@Tag(name = "Dashboard", description = "Estadísticas: agente (su cartera) o administrador (toda la operación)")
 public class DashboardController {
 
     private final PropertyRepository propertyRepository;
@@ -42,15 +44,64 @@ public class DashboardController {
     private final ContractRepository contractRepository;
 
     @GetMapping("/me")
-    @Operation(summary = "Dashboard del agente autenticado")
+    @Operation(summary = "Dashboard según rol",
+               description = "ADMIN: métricas globales del sistema. AGENT: métricas de las propiedades/clientes/citas/contratos asignados a ese usuario.")
     public ResponseEntity<DashboardDTO> myDashboard(@AuthenticationPrincipal User user) {
+        if (user.getRole() == User.Role.ADMIN) {
+            return ResponseEntity.ok(buildGlobalDashboard());
+        }
         return ResponseEntity.ok(buildDashboard(user.getId()));
     }
 
     @GetMapping("/agent/{agentId}")
-    @Operation(summary = "Dashboard de un agente específico — solo ADMIN")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Dashboard de un agente específico (solo ADMIN)")
     public ResponseEntity<DashboardDTO> agentDashboard(@PathVariable UUID agentId) {
         return ResponseEntity.ok(buildDashboard(agentId));
+    }
+
+    private DashboardDTO buildGlobalDashboard() {
+        long totalProperties     = propertyRepository.count();
+        long availableProperties = propertyRepository.countByStatus(Property.PropertyStatus.AVAILABLE);
+        long soldProperties      = propertyRepository.countByStatus(Property.PropertyStatus.SOLD);
+
+        long totalClients  = clientRepository.count();
+        long activeClients = clientRepository.countByStatus(Client.ClientStatus.INTERESTED)
+                           + clientRepository.countByStatus(Client.ClientStatus.NEGOTIATING);
+
+        long totalAppointments   = appointmentRepository.count();
+        long pendingAppointments = appointmentRepository.countPendingOrConfirmed();
+
+        long signedContracts = contractRepository.countByStatus(Contract.ContractStatus.SIGNED);
+        long totalContracts  = contractRepository.count();
+
+        BigDecimal fromContracts = contractRepository.sumSignedContractValueAll();
+        BigDecimal fromCatalog   = propertyRepository.sumSoldWithoutSignedContractPriceAll();
+        BigDecimal totalSalesAmount = nz(fromContracts).add(nz(fromCatalog));
+
+        LocalDateTime monthStart = YearMonth.now().atDay(1).atStartOfDay();
+        LocalDateTime monthEnd   = YearMonth.now().atEndOfMonth().atTime(23, 59, 59);
+
+        long monthlySignedContracts = monthlyClosedDealsCountGlobal(monthStart, monthEnd);
+        BigDecimal monthlyRevenue   = monthlyClosedDealsRevenueGlobal(monthStart, monthEnd);
+        long monthlyNewClients        = clientRepository.countByCreatedAtBetween(monthStart, monthEnd);
+        long monthlyAppointments      = appointmentRepository.countByScheduledAtBetween(monthStart, monthEnd);
+
+        List<MonthlyChartPoint> monthlySeries = buildMonthlySeriesGlobal();
+
+        return new DashboardDTO(
+                totalProperties, availableProperties, soldProperties,
+                totalClients, activeClients,
+                totalAppointments, pendingAppointments,
+                totalContracts, signedContracts,
+                totalSalesAmount,
+                monthlySignedContracts, monthlyRevenue, monthlyNewClients, monthlyAppointments,
+                monthlySeries
+        );
+    }
+
+    private static BigDecimal nz(BigDecimal v) {
+        return v != null ? v : BigDecimal.ZERO;
     }
 
     private DashboardDTO buildDashboard(UUID agentId) {
@@ -73,16 +124,16 @@ public class DashboardController {
         long signedContracts = contractRepository.findByAgentIdAndStatus(agentId, Contract.ContractStatus.SIGNED).size();
         long totalContracts  = contractRepository.findByAgentId(agentId).size();
 
-        BigDecimal totalSalesAmount = contractRepository.sumSalePriceByAgentId(agentId);
+        BigDecimal fromContracts = contractRepository.sumSalePriceByAgentId(agentId);
+        BigDecimal fromCatalog   = propertyRepository.sumSoldWithoutSignedContractPriceAllByAgent(agentId);
+        BigDecimal totalSalesAmount = nz(fromContracts).add(nz(fromCatalog));
 
         // Estadísticas del mes actual
         LocalDateTime monthStart = YearMonth.now().atDay(1).atStartOfDay();
         LocalDateTime monthEnd   = YearMonth.now().atEndOfMonth().atTime(23, 59, 59);
 
-        long monthlySignedContracts = contractRepository.countByAgentIdAndStatusAndCreatedAtBetween(
-                agentId, Contract.ContractStatus.SIGNED, monthStart, monthEnd);
-        BigDecimal monthlyRevenue = contractRepository.sumSalePriceByAgentIdAndCreatedAtBetween(
-                agentId, monthStart, monthEnd);
+        long monthlySignedContracts = monthlyClosedDealsCount(agentId, monthStart, monthEnd);
+        BigDecimal monthlyRevenue = monthlyClosedDealsRevenue(agentId, monthStart, monthEnd);
         long monthlyNewClients  = clientRepository.countByAgentIdAndCreatedAtBetween(agentId, monthStart, monthEnd);
         long monthlyAppointments = appointmentRepository.countByAgentIdAndScheduledAtBetween(agentId, monthStart, monthEnd);
 
@@ -100,6 +151,18 @@ public class DashboardController {
     }
 
     private List<MonthlyChartPoint> buildMonthlySeries(UUID agentId) {
+        return buildMonthlySeriesInternal(
+                (start, end) -> monthlyClosedDealsCount(agentId, start, end),
+                (start, end) -> monthlyClosedDealsRevenue(agentId, start, end));
+    }
+
+    private List<MonthlyChartPoint> buildMonthlySeriesGlobal() {
+        return buildMonthlySeriesInternal(this::monthlyClosedDealsCountGlobal, this::monthlyClosedDealsRevenueGlobal);
+    }
+
+    private List<MonthlyChartPoint> buildMonthlySeriesInternal(
+            BiFunction<LocalDateTime, LocalDateTime, Long> countFn,
+            BiFunction<LocalDateTime, LocalDateTime, BigDecimal> revenueFn) {
         List<MonthlyChartPoint> points = new ArrayList<>(6);
         YearMonth now = YearMonth.now();
         DateTimeFormatter labelFmt = DateTimeFormatter.ofPattern("MMM uuuu", Locale.forLanguageTag("es-MX"));
@@ -107,13 +170,38 @@ public class DashboardController {
             YearMonth ym = now.minusMonths(i);
             LocalDateTime start = ym.atDay(1).atStartOfDay();
             LocalDateTime end = ym.atEndOfMonth().atTime(23, 59, 59);
-            long signed = contractRepository.countByAgentIdAndStatusAndCreatedAtBetween(
-                    agentId, Contract.ContractStatus.SIGNED, start, end);
-            BigDecimal rev = contractRepository.sumSalePriceByAgentIdAndCreatedAtBetween(agentId, start, end);
+            long signed = countFn.apply(start, end);
+            BigDecimal rev = revenueFn.apply(start, end);
             String rawLabel = ym.format(labelFmt);
             String label = rawLabel.isEmpty() ? rawLabel : Character.toUpperCase(rawLabel.charAt(0)) + rawLabel.substring(1);
             points.add(new MonthlyChartPoint(label, signed, rev != null ? rev : BigDecimal.ZERO));
         }
         return points;
+    }
+
+    /** Contratos firmados (por fecha de última actualización) + propiedades vendidas sin contrato firmado. */
+    private long monthlyClosedDealsCount(UUID agentId, LocalDateTime start, LocalDateTime end) {
+        long contracts = contractRepository.countByAgentIdAndStatusAndUpdatedAtBetween(
+                agentId, Contract.ContractStatus.SIGNED, start, end);
+        long catalogOnly = propertyRepository.countSoldWithoutSignedContractByAgentAndUpdatedAtBetween(agentId, start, end);
+        return contracts + catalogOnly;
+    }
+
+    private BigDecimal monthlyClosedDealsRevenue(UUID agentId, LocalDateTime start, LocalDateTime end) {
+        BigDecimal fromContracts = contractRepository.sumSignedContractValueByAgentIdAndUpdatedAtBetween(agentId, start, end);
+        BigDecimal fromProps = propertyRepository.sumSoldWithoutSignedContractPriceByAgentAndUpdatedAtBetween(agentId, start, end);
+        return nz(fromContracts).add(nz(fromProps));
+    }
+
+    private long monthlyClosedDealsCountGlobal(LocalDateTime start, LocalDateTime end) {
+        long contracts = contractRepository.countByStatusAndUpdatedAtBetween(Contract.ContractStatus.SIGNED, start, end);
+        long catalogOnly = propertyRepository.countSoldWithoutSignedContractByUpdatedAtBetween(start, end);
+        return contracts + catalogOnly;
+    }
+
+    private BigDecimal monthlyClosedDealsRevenueGlobal(LocalDateTime start, LocalDateTime end) {
+        BigDecimal fromContracts = contractRepository.sumSignedContractValueByUpdatedAtBetween(start, end);
+        BigDecimal fromProps = propertyRepository.sumSoldWithoutSignedContractPriceByUpdatedAtBetween(start, end);
+        return nz(fromContracts).add(nz(fromProps));
     }
 }

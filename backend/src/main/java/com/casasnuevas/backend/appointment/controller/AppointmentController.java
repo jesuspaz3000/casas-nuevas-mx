@@ -15,8 +15,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,6 +60,17 @@ public class AppointmentController {
     @Operation(summary = "Citas por cliente")
     public ResponseEntity<List<AppointmentDTO>> findByClient(@PathVariable UUID clientId) {
         return ResponseEntity.ok(appointmentService.findByClient(clientId));
+    }
+
+    @GetMapping("/calendar")
+    @Operation(summary = "Citas en rango (vista semanal)",
+               description = "Devuelve citas del agente con `scheduledAt` en `[from, to)` ordenadas por fecha.")
+    public ResponseEntity<List<AppointmentDTO>> calendar(
+            @Parameter(description = "Agente") @RequestParam UUID agentId,
+            @Parameter(description = "Inicio inclusive") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @Parameter(description = "Fin exclusive") @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to
+    ) {
+        return ResponseEntity.ok(appointmentService.findCalendar(agentId, from, to));
     }
 
     @GetMapping("/{id}")

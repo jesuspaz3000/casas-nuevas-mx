@@ -9,6 +9,8 @@ export interface Appointment {
     agentId: string;
     agentName: string;
     scheduledAt: string;
+    /** Minutos; por defecto 60 si el backend aún no lo envía. */
+    durationMinutes?: number;
     status: AppointmentStatus;
     notes: string | null;
     createdAt: string;
@@ -19,12 +21,14 @@ export interface AppointmentCreateDTO {
     clientId: string;
     agentId: string;
     scheduledAt: string;
+    durationMinutes?: number;
     status: AppointmentStatus;
     notes?: string;
 }
 
 export interface AppointmentUpdateDTO {
     scheduledAt?: string;
+    durationMinutes?: number;
     status?: AppointmentStatus;
     notes?: string;
 }

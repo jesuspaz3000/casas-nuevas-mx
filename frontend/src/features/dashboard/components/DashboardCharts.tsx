@@ -88,7 +88,7 @@ export function DashboardCharts({ data, isLoading }: Props) {
                                     Contratos firmados
                                 </h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                    Por mes según fecha de creación del contrato (estado firmado)
+                                    Por mes: cierre de contrato firmado (fecha de actualización) o propiedad marcada vendida sin contrato firmado
                                 </p>
                                 <div className="w-full min-w-0">
                                     <BarChart
@@ -113,7 +113,7 @@ export function DashboardCharts({ data, isLoading }: Props) {
                                     Ingresos por mes
                                 </h3>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                                    Suma de precio de venta en contratos firmados (MXN)
+                                    Suma del monto de cierre (contrato: venta o reserva; catálogo: precio de propiedad vendida sin contrato) en MXN
                                 </p>
                                 <div className="w-full min-w-0">
                                     <LineChart

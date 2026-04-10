@@ -16,6 +16,13 @@ export const AppointmentsService = {
         return res.data;
     },
 
+    findCalendar: async (agentId: string, from: string, to: string): Promise<Appointment[]> => {
+        const res = await ApiService.get<Appointment[]>("/appointments/calendar", {
+            params: { agentId, from, to },
+        });
+        return res.data;
+    },
+
     findById: async (id: string): Promise<Appointment> => {
         const res = await ApiService.get<Appointment>(`/appointments/${id}`);
         return res.data;

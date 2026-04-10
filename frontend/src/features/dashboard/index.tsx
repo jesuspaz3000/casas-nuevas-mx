@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuthStore } from "@/store/auth.store";
 import { useDashboard } from "@/features/dashboard/hooks/useDashboard";
 import { StatCard } from "@/features/dashboard/components/StatCard";
 import { DashboardCharts } from "@/features/dashboard/components/DashboardCharts";
@@ -33,6 +34,7 @@ function SkeletonCard() {
 }
 
 export default function Dashboard() {
+    const isAdmin = useAuthStore((s) => s.user?.role === "ADMIN");
     const { stats, isLoading, error } = useDashboard();
 
     if (error) {
@@ -47,7 +49,11 @@ export default function Dashboard() {
         <div className="space-y-8">
             <div>
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Resumen general de tu actividad</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    {isAdmin
+                        ? "Vista global: propiedades, clientes, citas y contratos de todos los agentes."
+                        : "Tu cartera: solo lo asignado a tu usuario como agente."}
+                </p>
             </div>
 
             {/* Totales */}

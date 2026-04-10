@@ -26,7 +26,7 @@ public interface ContractRepository extends JpaRepository<Contract, UUID>, JpaSp
 
     List<Contract> findByAgentIdAndStatus(UUID agentId, Contract.ContractStatus status);
 
-    @Query("SELECT COALESCE(SUM(c.salePrice), 0) FROM Contract c WHERE c.agent.id = :agentId AND c.status = 'SIGNED'")
+    @Query("SELECT COALESCE(SUM(COALESCE(c.salePrice, c.reservationPrice)), 0) FROM Contract c WHERE c.agent.id = :agentId AND c.status = 'SIGNED'")
     BigDecimal sumSalePriceByAgentId(@Param("agentId") UUID agentId);
 
     long countByAgentIdAndStatusAndCreatedAtBetween(UUID agentId, Contract.ContractStatus status,
@@ -36,4 +36,32 @@ public interface ContractRepository extends JpaRepository<Contract, UUID>, JpaSp
     BigDecimal sumSalePriceByAgentIdAndCreatedAtBetween(@Param("agentId") UUID agentId,
                                                         @Param("from") java.time.LocalDateTime from,
                                                         @Param("to") java.time.LocalDateTime to);
+
+    /** Contratos firmados cuyo último cambio (p. ej. firma) cayó en el rango — alinea el mes con el cierre real. */
+    long countByAgentIdAndStatusAndUpdatedAtBetween(UUID agentId, Contract.ContractStatus status,
+                                                    java.time.LocalDateTime from, java.time.LocalDateTime to);
+
+    @Query("""
+            SELECT COALESCE(SUM(COALESCE(c.salePrice, c.reservationPrice)), 0) FROM Contract c
+            WHERE c.agent.id = :agentId AND c.status = 'SIGNED'
+              AND c.updatedAt BETWEEN :from AND :to
+            """)
+    BigDecimal sumSignedContractValueByAgentIdAndUpdatedAtBetween(@Param("agentId") UUID agentId,
+                                                                  @Param("from") java.time.LocalDateTime from,
+                                                                  @Param("to") java.time.LocalDateTime to);
+
+    long countByStatus(Contract.ContractStatus status);
+
+    long countByStatusAndUpdatedAtBetween(Contract.ContractStatus status,
+                                          java.time.LocalDateTime from, java.time.LocalDateTime to);
+
+    @Query("""
+            SELECT COALESCE(SUM(COALESCE(c.salePrice, c.reservationPrice)), 0) FROM Contract c
+            WHERE c.status = 'SIGNED' AND c.updatedAt BETWEEN :from AND :to
+            """)
+    BigDecimal sumSignedContractValueByUpdatedAtBetween(@Param("from") java.time.LocalDateTime from,
+                                                        @Param("to") java.time.LocalDateTime to);
+
+    @Query("SELECT COALESCE(SUM(COALESCE(c.salePrice, c.reservationPrice)), 0) FROM Contract c WHERE c.status = 'SIGNED'")
+    BigDecimal sumSignedContractValueAll();
 }
